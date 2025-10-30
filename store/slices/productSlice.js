@@ -1,233 +1,226 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import {
-    getProducts,
-    getProductById,
-    getProductsByCategory,
-    getTopSoldProducts
-} from '../../services/productService';
+import productService from '../../services/productService';
 
-// Initial state cho product
-const initialState = {
-    products: [],
-    allProducts: [], // Separate state for all products page
-    allActiveProducts: [], // Cache all active products for client-side pagination
-    topSoldProducts: [], // State for top sold products
-    product: null,
-    isLoading: false,
-    isLoadingTopSold: false, // Separate loading state for top sold products
-    error: null,
-    pagination: {
-        currentPage: 1,
-        totalPages: 1,
-        hasMore: true
+// Async thunks
+export const fetchProducts = createAsyncThunk(
+  'products/fetchProducts',
+  async ({ limit = 20, offset = 0 } = {}, { rejectWithValue }) => {
+    try {
+      const products = await productService.getProducts(limit, offset);
+      return products;
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
+  }
+);
+
+export const fetchProductById = createAsyncThunk(
+  'products/fetchProductById',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const product = await productService.getProductById(productId);
+      return product;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const searchProducts = createAsyncThunk(
+  'products/searchProducts',
+  async ({ query, limit = 20 }, { rejectWithValue }) => {
+    try {
+      const products = await productService.searchProducts(query, limit);
+      return products;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchFeaturedProducts = createAsyncThunk(
+  'products/fetchFeaturedProducts',
+  async (limit = 10, { rejectWithValue }) => {
+    try {
+      const products = await productService.getFeaturedProducts(limit);
+      return products;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchNewProducts = createAsyncThunk(
+  'products/fetchNewProducts',
+  async (limit = 10, { rejectWithValue }) => {
+    try {
+      const products = await productService.getNewProducts(limit);
+      return products;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+export const fetchProductsByCategory = createAsyncThunk(
+  'products/fetchProductsByCategory',
+  async ({ categoryId, limit = 20, offset = 0 }, { rejectWithValue }) => {
+    try {
+      const products = await productService.getProductsByCategory(categoryId, limit, offset);
+      return products;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
+
+// Initial state
+const initialState = {
+  products: [],
+  currentProduct: null,
+  featuredProducts: [],
+  newProducts: [],
+  searchResults: [],
+  categoryProducts: [],
+  loading: false,
+  error: null,
+  searchQuery: '',
+  currentPage: 1,
+  hasMore: true,
+  totalProducts: 0
 };
 
-export const fetchProductsAsync = createAsyncThunk(
-    'product/fetchProducts',
-    async ({ page, limit, isAllProducts = false, search = null }, { rejectWithValue }) => {
-        try {
-            const response = await getProducts({ page, limit, search });
-            return {
-                products: response.data.products,
-                pagination: response.data.total,
-                isAllProducts,
-                page
-            };
-        } catch (error) {
-            console.error('API error:', error);
-            return rejectWithValue(error.message);
-        }
-    }
-);
-
-export const fetchProductsByCategoryAsync = createAsyncThunk(
-    'product/fetchProductsByCategory',
-    async ({ category_name, page, limit }, { rejectWithValue }) => {
-        try {
-            const response = await getProductsByCategory({ category_name, page, limit });
-            return {
-                products: response.data.products,
-                pagination: response.data.total,
-                isAllProducts: true,
-                page
-            };
-        } catch (error) {
-            console.error('fetchProductsByCategoryAsync error:', error);
-            return rejectWithValue(error.message);
-        }
-    }
-);
-
-export const fetchProductByIdAsync = createAsyncThunk(
-    'product/fetchProductById',
-    async (id, { rejectWithValue }) => {
-        try {
-            const response = await getProductById(id);
-
-            return response;  // Trả về response thay vì response.product
-        } catch (error) {
-            console.error('fetchProductByIdAsync error:', error);
-            return rejectWithValue(error.message);
-        }
-    }
-);
-
-export const fetchTopSoldProductsAsync = createAsyncThunk(
-    'product/fetchTopSoldProducts',
-    async ({ page = 1, limit = 10, search = null }, { rejectWithValue }) => {
-        try {
-            const response = await getTopSoldProducts({ page, limit, search });
-            return {
-                products: response.data.products,
-                pagination: response.data.total
-            };
-        } catch (error) {
-            console.error('fetchTopSoldProductsAsync error:', error);
-            return rejectWithValue(error.message);
-        }
-    }
-);
+// Slice
 const productSlice = createSlice({
-    name: 'product',
-    initialState,
-    reducers: {
-        resetProductState: (state) => {
-            state.product = null;
-            state.error = null;
-        },
-        clearError: (state) => {
-            state.error = null;
-        },
-        resetAllProducts: (state) => {
-            state.allProducts = [];
-            state.allActiveProducts = [];
-            state.pagination.currentPage = 1;
-            state.pagination.hasMore = true;
+  name: 'products',
+  initialState,
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
+    clearSearchResults: (state) => {
+      state.searchResults = [];
+      state.searchQuery = '';
+    },
+    setSearchQuery: (state, action) => {
+      state.searchQuery = action.payload;
+    },
+    clearCurrentProduct: (state) => {
+      state.currentProduct = null;
+    },
+    clearCategoryProducts: (state) => {
+      state.categoryProducts = [];
+    },
+    resetProducts: (state) => {
+      state.products = [];
+      state.currentPage = 1;
+      state.hasMore = true;
+    }
+  },
+  extraReducers: (builder) => {
+    // Fetch products
+    builder
+      .addCase(fetchProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.length < 20) {
+          state.hasMore = false;
         }
-    },
-    extraReducers: (builder) => {
-        builder
-            // Fetch Products
-            .addCase(fetchProductsAsync.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(fetchProductsAsync.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.error = null;
+        state.products = [...state.products, ...action.payload];
+        state.currentPage += 1;
+      })
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
-                // Products are already filtered for status = true in productService
-                const activeProducts = action.payload.products;
+    // Fetch product by ID
+    builder
+      .addCase(fetchProductById.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductById.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentProduct = action.payload;
+      })
+      .addCase(fetchProductById.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
+    // Search products
+    builder
+      .addCase(searchProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(searchProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.searchResults = action.payload;
+      })
+      .addCase(searchProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
+    // Fetch featured products
+    builder
+      .addCase(fetchFeaturedProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchFeaturedProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.featuredProducts = action.payload;
+      })
+      .addCase(fetchFeaturedProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
-                if (action.payload.isAllProducts) {
-                    const { currentPage, totalPage } = action.payload.pagination;
-                    const limit = 6; // ITEMS_PER_PAGE from AllProductsScreen
+    // Fetch new products
+    builder
+      .addCase(fetchNewProducts.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchNewProducts.fulfilled, (state, action) => {
+        state.loading = false;
+        state.newProducts = action.payload;
+      })
+      .addCase(fetchNewProducts.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
-                    if (action.payload.page === 1) {
-                        // Reset and cache all active products for client-side pagination
-                        state.allActiveProducts = activeProducts;
-                        // Show first page (6 products)
-                        state.allProducts = activeProducts.slice(0, limit);
-                    } else {
-                        // Client-side pagination: get next page from cached active products
-                        const startIndex = (action.payload.page - 1) * limit;
-                        const endIndex = startIndex + limit;
-                        const nextPageProducts = state.allActiveProducts.slice(startIndex, endIndex);
-
-                        // Append to displayed products
-                        const previousCount = state.allProducts.length;
-                        state.allProducts = [...state.allProducts, ...nextPageProducts];
-                    }
-
-                    // Update pagination based on active products count
-                    state.pagination.currentPage = currentPage;
-                    state.pagination.totalPages = totalPage;
-                    state.pagination.hasMore = currentPage < totalPage;
-                } else {
-                    // Handle featured products - chỉ lấy sản phẩm active
-                    state.products = activeProducts;
-                }
-            })
-            .addCase(fetchProductsAsync.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-            // Fetch Products By Category
-            .addCase(fetchProductsByCategoryAsync.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(fetchProductsByCategoryAsync.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.error = null;
-
-                // Products are already filtered for status = true in productService
-                const activeProducts = action.payload.products;
-
-                // Handle pagination for category products (client-side pagination)
-                const { currentPage, totalPage } = action.payload.pagination;
-                const limit = 6; // ITEMS_PER_PAGE from AllProductsScreen
-
-                if (action.payload.page === 1) {
-                    // Reset and cache all active category products for client-side pagination
-                    state.allActiveProducts = activeProducts;
-                    // Show first page (6 products)
-                    state.allProducts = activeProducts.slice(0, limit);
-                } else {
-                    // Client-side pagination: get next page from cached active products
-                    const startIndex = (action.payload.page - 1) * limit;
-                    const endIndex = startIndex + limit;
-                    const nextPageProducts = state.allActiveProducts.slice(startIndex, endIndex);
-
-                    // Append to displayed products
-                    const previousCount = state.allProducts.length;
-                    state.allProducts = [...state.allProducts, ...nextPageProducts];
-                }
-
-                // Update pagination based on active products count
-                state.pagination.currentPage = currentPage;
-                state.pagination.totalPages = totalPage;
-                state.pagination.hasMore = currentPage < totalPage;
-            })
-            .addCase(fetchProductsByCategoryAsync.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-            // Fetch Product By ID
-            .addCase(fetchProductByIdAsync.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(fetchProductByIdAsync.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.product = action.payload;
-                state.error = null;
-            })
-            .addCase(fetchProductByIdAsync.rejected, (state, action) => {
-                state.isLoading = false;
-                state.product = null;
-                state.error = action.payload;
-            })
-            // Fetch Top Sold Products
-            .addCase(fetchTopSoldProductsAsync.pending, (state) => {
-                state.isLoadingTopSold = true;
-                state.error = null;
-            })
-            .addCase(fetchTopSoldProductsAsync.fulfilled, (state, action) => {
-                state.isLoadingTopSold = false;
-                state.error = null;
-                // Products are already filtered for status = true in productService
-                state.topSoldProducts = action.payload.products;
-            })
-            .addCase(fetchTopSoldProductsAsync.rejected, (state, action) => {
-                state.isLoadingTopSold = false;
-                state.error = action.payload;
-            });
-    },
+    // Fetch products by category
+    builder
+      .addCase(fetchProductsByCategory.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductsByCategory.fulfilled, (state, action) => {
+        state.loading = false;
+        state.categoryProducts = action.payload;
+      })
+      .addCase(fetchProductsByCategory.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+  }
 });
 
-export const { resetProductState, clearError, resetAllProducts } = productSlice.actions;
+export const {
+  clearError,
+  clearSearchResults,
+  setSearchQuery,
+  clearCurrentProduct,
+  clearCategoryProducts,
+  resetProducts
+} = productSlice.actions;
+
 export default productSlice.reducer;

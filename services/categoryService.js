@@ -1,67 +1,237 @@
-import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import databaseService from './databaseService';
 
-// Hàm lấy danh mục
-export async function getCategories({ page = 1, limit = 100 }) {
-    try {
-        // const token = await AsyncStorage.getItem('token');  // Lấy token từ AsyncStorage
+class CategoryService {
+    // Get all categories
+    async getCategories(limit = null, offset = 0) {
+        try {
+            return await databaseService.getCategories(limit, offset);
+        } catch (error) {
+            console.error('CategoryService - Error getting categories:', error);
+            throw error;
+        }
+    }
 
-        // if (!token) {
-        //     throw new Error('No token provided');  // Nếu không có token, ném lỗi
-        // }
+    // Get category by ID
+    async getCategoryById(id) {
+        try {
+            return await databaseService.getCategoryById(id);
+        } catch (error) {
+            console.error('CategoryService - Error getting category by id:', error);
+            throw error;
+        }
+    }
 
-        // Gửi yêu cầu GET với token trong header
-        const response = await axios.get(
-            `https://youtube-fullstack-nodejs-forbeginer.onrender.com/api/category?page=${page}&limit=${limit}`,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    // Authorization: `Bearer ${token}`,  // Thêm token vào header
-                },
+    // Add new category
+    async addCategory(categoryData) {
+        try {
+            const category = {
+                name: categoryData.name,
+                description: categoryData.description || '',
+                image_url: categoryData.image_url || '',
+                is_active: categoryData.is_active !== undefined ? categoryData.is_active : true
+            };
+
+            return await databaseService.addCategory(category);
+        } catch (error) {
+            console.error('CategoryService - Error adding category:', error);
+            throw error;
+        }
+    }
+
+    // Update category
+    async updateCategory(id, categoryData) {
+        try {
+            const category = {
+                name: categoryData.name,
+                description: categoryData.description || '',
+                image_url: categoryData.image_url || '',
+                is_active: categoryData.is_active !== undefined ? categoryData.is_active : true
+            };
+
+            return await databaseService.updateCategory(id, category);
+        } catch (error) {
+            console.error('CategoryService - Error updating category:', error);
+            throw error;
+        }
+    }
+
+    // Delete category
+    async deleteCategory(id) {
+        try {
+            return await databaseService.deleteCategory(id);
+        } catch (error) {
+            console.error('CategoryService - Error deleting category:', error);
+            throw error;
+        }
+    }
+
+    // Search categories
+    async searchCategories(query, limit = 20) {
+        try {
+            return await databaseService.searchCategories(query, limit);
+        } catch (error) {
+            console.error('CategoryService - Error searching categories:', error);
+            throw error;
+        }
+    }
+
+    // Get active categories
+    async getActiveCategories(limit = 20) {
+        try {
+            const query = `
+        SELECT * FROM categories 
+        WHERE is_active = 1 
+        ORDER BY name ASC 
+        LIMIT ?
+      `;
+            return await databaseService.db.getAllAsync(query, [limit]);
+        } catch (error) {
+            console.error('CategoryService - Error getting active categories:', error);
+            throw error;
+        }
+    }
+
+    // Get category with product count
+    async getCategoryWithProductCount(categoryId) {
+        try {
+            const query = `
+        SELECT c.*, COUNT(p.id) as product_count
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category_id
+        WHERE c.id = ?
+        GROUP BY c.id
+      `;
+            return await databaseService.db.getFirstAsync(query, [categoryId]);
+        } catch (error) {
+            console.error('CategoryService - Error getting category with product count:', error);
+            throw error;
+        }
+    }
+
+    // Get all categories with product count
+    async getCategoriesWithProductCount(limit = 20, offset = 0) {
+        try {
+            const query = `
+        SELECT c.*, COUNT(p.id) as product_count
+        FROM categories c
+        LEFT JOIN products p ON c.id = p.category_id
+        GROUP BY c.id
+        ORDER BY c.name ASC
+        LIMIT ? OFFSET ?
+      `;
+            return await databaseService.db.getAllAsync(query, [limit, offset]);
+        } catch (error) {
+            console.error('CategoryService - Error getting categories with product count:', error);
+            throw error;
+        }
+    }
+
+    // Toggle category active status
+    async toggleCategoryStatus(id) {
+        try {
+            const category = await this.getCategoryById(id);
+            if (!category) throw new Error('Category not found');
+
+            const newStatus = !category.is_active;
+            const query = `
+        UPDATE categories 
+        SET is_active = ?, updated_at = CURRENT_TIMESTAMP 
+        WHERE id = ?
+      `;
+            const result = await databaseService.db.runAsync(query, [newStatus, id]);
+            return result.changes > 0;
+        } catch (error) {
+            console.error('CategoryService - Error toggling category status:', error);
+            throw error;
+        }
+    }
+
+    // Get category statistics
+    async getCategoryStats() {
+        try {
+            const stats = {};
+
+            // Total categories
+            const totalResult = await databaseService.db.getFirstAsync('SELECT COUNT(*) as count FROM categories');
+            stats.totalCategories = totalResult.count;
+
+            // Active categories count
+            const activeResult = await databaseService.db.getFirstAsync('SELECT COUNT(*) as count FROM categories WHERE is_active = 1');
+            stats.activeCategories = activeResult.count;
+
+            // Inactive categories count
+            const inactiveResult = await databaseService.db.getFirstAsync('SELECT COUNT(*) as count FROM categories WHERE is_active = 0');
+            stats.inactiveCategories = inactiveResult.count;
+
+            // Categories with products count
+            const withProductsResult = await databaseService.db.getFirstAsync(`
+        SELECT COUNT(DISTINCT c.id) as count 
+        FROM categories c 
+        INNER JOIN products p ON c.id = p.category_id
+      `);
+            stats.categoriesWithProducts = withProductsResult.count;
+
+            return stats;
+        } catch (error) {
+            console.error('CategoryService - Error getting category stats:', error);
+            throw error;
+        }
+    }
+
+    // Bulk update categories
+    async bulkUpdateCategories(updates) {
+        try {
+            const results = [];
+
+            for (const update of updates) {
+                const result = await this.updateCategory(update.id, update.data);
+                results.push({ id: update.id, success: result });
             }
-        );
 
-        const data = response.data;
-
-        if (data.status !== 'OK') {
-            throw new Error(data.message || 'Failed to fetch categories');
+            return results;
+        } catch (error) {
+            console.error('CategoryService - Error bulk updating categories:', error);
+            throw error;
         }
+    }
 
-        return data;  // Trả về dữ liệu danh mục
-    } catch (error) {
-        console.error('API error:', error);  // Log lỗi chi tiết
-        throw new Error(error.response?.data?.message || error.message || 'Failed to fetch categories');
+    // Export categories to JSON
+    async exportCategories() {
+        try {
+            const categories = await this.getCategories();
+            const exportData = {
+                timestamp: new Date().toISOString(),
+                version: '1.0.0',
+                categories: categories
+            };
+
+            return exportData;
+        } catch (error) {
+            console.error('CategoryService - Error exporting categories:', error);
+            throw error;
+        }
+    }
+
+    // Import categories from JSON
+    async importCategories(importData) {
+        try {
+            const results = [];
+
+            for (const categoryData of importData.categories) {
+                try {
+                    const result = await this.addCategory(categoryData);
+                    results.push({ success: true, id: result });
+                } catch (error) {
+                    results.push({ success: false, error: error.message, data: categoryData });
+                }
+            }
+
+            return results;
+        } catch (error) {
+            console.error('CategoryService - Error importing categories:', error);
+            throw error;
+        }
     }
 }
 
-// Hàm tìm kiếm danh mục theo tên
-export async function searchCategories({ search, page = 1, limit = 10 }) {
-    try {
-        // const token = await AsyncStorage.getItem('token');
-        // if (!token) throw new Error('Token not found');
-
-        let url = `https://youtube-fullstack-nodejs-forbeginer.onrender.com/api/category?page=${page}&limit=${limit}`;
-        if (search && search.trim() !== '') {
-            url += `&search=${encodeURIComponent(search.trim())}`;
-        }
-
-        const response = await axios.get(url, {
-            headers: {
-                'Content-Type': 'application/json',
-                // Authorization: `Bearer ${token}`,
-            },
-        });
-
-        const data = response.data;
-
-        if (data.status !== 'OK') {
-            throw new Error(data.message || 'Failed to search categories');
-        }
-
-        return data;
-    } catch (error) {
-        console.error('searchCategories error:', error);
-        throw new Error(error.response?.data?.message || error.message || 'Failed to search categories');
-    }
-}
-
+export default new CategoryService();
