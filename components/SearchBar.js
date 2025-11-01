@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { searchCategories } from '../services/categoryService';
-import { searchProducts } from '../services/productService';
+import categoryService from '../services/categoryService';
+import productService from '../services/productService';
 import { COLORS } from '../constants/colors';
 
 const SearchBar = () => {
@@ -35,28 +35,25 @@ const SearchBar = () => {
         setIsLoading(true);
         try {
             // Search both categories and products
-            const [categoriesResponse, productsResponse] = await Promise.all([
-                searchCategories({ search: query, limit: 5 }),
-                searchProducts({ search: query, limit: 10 })
+            const [categoriesResults, productsResults] = await Promise.all([
+                categoryService.searchCategories(query, 5),
+                productService.searchProducts(query, 10)
             ]);
 
-            // Filter only active items (status = true)
-            const activeCategories = categoriesResponse.data.categories
-                .filter(category => category.status === true)
-                .map(category => ({
-                    ...category,
-                    type: 'category'
-                }));
+            // Map categories (SQLite doesn't have status field, show all)
+            const categories = (categoriesResults || []).map(category => ({
+                ...category,
+                type: 'category'
+            }));
 
-            const activeProducts = productsResponse.data.products
-                .filter(product => product.status === true)
-                .map(product => ({
-                    ...product,
-                    type: 'product'
-                }));
+            // Map products
+            const products = (productsResults || []).map(product => ({
+                ...product,
+                type: 'product'
+            }));
 
             // Combine results
-            const combinedResults = [...activeCategories, ...activeProducts];
+            const combinedResults = [...categories, ...products];
             setSearchResults(combinedResults);
             setShowResults(combinedResults.length > 0);
         } catch (error) {
@@ -90,14 +87,16 @@ const SearchBar = () => {
         setShowResults(false);
         setSearchText('');
 
+        const itemId = item.id || item._id;
+
         if (item.type === 'category') {
             navigation.navigate('AllProducts', {
-                categoryId: item._id,
+                categoryId: itemId,
                 categoryName: item.name
             });
         } else if (item.type === 'product') {
             navigation.navigate('ProductDetail', {
-                productId: item._id
+                productId: itemId
             });
         }
     };
@@ -108,7 +107,7 @@ const SearchBar = () => {
             onPress={() => handleItemPress(item)}
         >
             <Image
-                source={item?.image ? { uri: item.image } : require('../assets/favicon.png')}
+                source={(item?.image_url || item?.image) ? { uri: item.image_url || item.image } : require('../assets/favicon.png')}
                 style={styles.itemImage}
             />
             <View style={styles.itemInfo}>
@@ -183,7 +182,7 @@ const SearchBar = () => {
                         <FlatList
                             data={searchResults}
                             renderItem={renderSearchItem}
-                            keyExtractor={(item) => `${item.type}-${item._id}`}
+                            keyExtractor={(item) => `${item.type}-${item.id || item._id}`}
                             style={styles.resultsList}
                             showsVerticalScrollIndicator={false}
                             ItemSeparatorComponent={() => <View style={styles.separator} />}

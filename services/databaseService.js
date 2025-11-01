@@ -418,6 +418,20 @@ class DatabaseService {
         }
     }
 
+    // Tìm kiếm categories
+    async searchCategories(query, limit = 20) {
+        try {
+            const result = await this.db.getAllAsync(
+                'SELECT * FROM categories WHERE name LIKE ? OR description LIKE ? ORDER BY name LIMIT ?',
+                [`%${query}%`, `%${query}%`, limit]
+            );
+            return result;
+        } catch (error) {
+            console.error('Error searching categories:', error);
+            return [];
+        }
+    }
+
     // ==================== USERS ====================
 
     // Tạo user mới
