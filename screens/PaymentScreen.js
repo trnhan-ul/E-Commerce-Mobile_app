@@ -70,7 +70,7 @@ const PaymentScreen = ({ navigation, route }) => {
 
   // Redux state
   const { isLoading, createSuccess, newOrderId, error } = useSelector(
-    (state) => state.order
+    (state) => state.orders || {}
   );
 
   // Get data from navigation params or use default values

@@ -50,7 +50,7 @@ class CartService {
       const query = `
         SELECT ci.*, p.name, p.price, p.image_url, p.stock_quantity,
                (ci.quantity * p.price) as total_price
-        FROM cart_items ci
+        FROM cart ci
         LEFT JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ?
         ORDER BY ci.created_at DESC
@@ -81,7 +81,7 @@ class CartService {
       }
 
       const query = `
-        UPDATE cart_items 
+        UPDATE cart 
         SET quantity = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE user_id = ? AND product_id = ?
       `;
@@ -99,7 +99,7 @@ class CartService {
       const userId = await this.getCurrentUserId();
       if (!userId) throw new Error('User not logged in');
 
-      const query = 'DELETE FROM cart_items WHERE user_id = ? AND product_id = ?';
+      const query = 'DELETE FROM cart WHERE user_id = ? AND product_id = ?';
       const result = await databaseService.db.runAsync(query, [userId, productId]);
       return result.changes > 0;
     } catch (error) {
@@ -114,7 +114,7 @@ class CartService {
       const userId = await this.getCurrentUserId();
       if (!userId) throw new Error('User not logged in');
 
-      const query = 'DELETE FROM cart_items WHERE user_id = ?';
+      const query = 'DELETE FROM cart WHERE user_id = ?';
       const result = await databaseService.db.runAsync(query, [userId]);
       return result.changes > 0;
     } catch (error) {
@@ -131,7 +131,7 @@ class CartService {
 
       const query = `
         SELECT ci.*, p.name, p.price, p.image_url, p.stock_quantity
-        FROM cart_items ci
+        FROM cart ci
         LEFT JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ? AND ci.product_id = ?
       `;
@@ -148,7 +148,7 @@ class CartService {
       const userId = await this.getCurrentUserId();
       if (!userId) return 0;
 
-      const query = 'SELECT SUM(quantity) as count FROM cart_items WHERE user_id = ?';
+      const query = 'SELECT SUM(quantity) as count FROM cart WHERE user_id = ?';
       const result = await databaseService.db.getFirstAsync(query, [userId]);
       return result.count || 0;
     } catch (error) {
@@ -167,7 +167,7 @@ class CartService {
         SELECT 
           SUM(ci.quantity * p.price) as total,
           SUM(ci.quantity) as item_count
-        FROM cart_items ci
+        FROM cart ci
         LEFT JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ?
       `;
@@ -268,7 +268,7 @@ class CartService {
           COUNT(DISTINCT ci.product_id) as unique_products,
           SUM(ci.quantity) as item_count,
           SUM(ci.quantity * p.price) as total_value
-        FROM cart_items ci
+        FROM cart ci
         LEFT JOIN products p ON ci.product_id = p.id
         WHERE ci.user_id = ?
       `;

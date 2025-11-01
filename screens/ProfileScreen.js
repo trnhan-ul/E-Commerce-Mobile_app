@@ -44,7 +44,7 @@ const ProfileScreen = ({ navigation }) => {
         isAuthenticated,
     } = useAuth();
     const { profile, isLoading, isUpdateSuccess, isChangePasswordSuccess, error } = userState || {};
-    const { orders, isLoading: orderLoading, error: orderError } = useSelector((state) => state.order);
+    const { orders, isLoading: orderLoading, error: orderError } = useSelector((state) => state.orders || { orders: [], isLoading: false, error: null });
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -228,7 +228,7 @@ const ProfileScreen = ({ navigation }) => {
                         style={styles.loadingContainer}
                         color={COLORS.primary}
                     />
-                ) : profile && profile.user_name ? (
+                ) : profile && (profile.user_name || profile.full_name || profile.email) ? (
                     <>
                         <ProfileHeader
                             profile={profile}
@@ -243,7 +243,7 @@ const ProfileScreen = ({ navigation }) => {
                         <OrderHistorySection
                             orderHistory={orders}
                             onViewAll={() => navigation?.navigate('OrderHistory')}
-                            onOrderPress={(order) => navigation.navigate('OrderDetails', { orderId: order._id })}
+                            onOrderPress={(order) => navigation.navigate('OrderDetails', { orderId: order.id || order._id })}
 
                         />
 

@@ -15,8 +15,7 @@ import {
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
-import { fetchProductByIdAsync } from '../store/slices/productSlice';
+import { fetchProductById } from '../store/slices/productSlice';
 import {
     fetchProductReviewsByProductId,
     selectProductReviews,
@@ -42,7 +41,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
     const productId = route?.params?.productId;
 
     // Get product and loading state from Redux
-    const { product, isLoading: productLoading, error } = useSelector((state) => state.product);
+    const { currentProduct: product, loading: productLoading, error } = useSelector((state) => state.products || {});
 
     // Get cart state for badge
     const { cart } = useSelector((state) => state.cart);
@@ -53,16 +52,23 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
     // Get reviews for this specific product ONLY
     const reviews = useSelector(state => selectProductReviews(state, productId));
-    const reviewsLoading = useSelector(state => selectProductReviewsLoading(state, productId));
+    const reviewsLoading = useSelector((state) => state.reviews?.loading || false);
+
+    // Helper: Get stock quantity (support both old and new field names)
+    const getStockQuantity = () => {
+        if (!product) return 0;
+        return product.stock_quantity ?? product.quantity ?? 0;
+    };
+    const stockQuantity = getStockQuantity();
 
     // Check if product is out of stock
-    const isOutOfStock = product && product.quantity <= 0;
+    const isOutOfStock = product && stockQuantity <= 0;
 
     // Fetch data chỉ khi cần thiết (không clear data cũ)
     useEffect(() => {
         if (productId && productId !== 'undefined') {
             // Fetch product details
-            dispatch(fetchProductByIdAsync(productId));
+            dispatch(fetchProductById(productId));
 
             // Chỉ fetch reviews nếu chưa có data cho sản phẩm này
             // Hoặc nếu bạn muốn luôn refresh data, hãy bỏ điều kiện này
@@ -74,17 +80,18 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
     // Auto-adjust quantity if it exceeds available stock when product data updates
     useEffect(() => {
-        if (product && product.quantity > 0 && quantity > product.quantity) {
-            setQuantity(product.quantity);
+        const currentStock = getStockQuantity();
+        if (product && currentStock > 0 && quantity > currentStock) {
+            setQuantity(currentStock);
             Toast.show({
                 type: 'info',
                 text1: 'Số lượng đã được điều chỉnh',
-                text2: `Số lượng đã được giảm xuống ${product.quantity} (tối đa có sẵn)`,
+                text2: `Số lượng đã được giảm xuống ${currentStock} (tối đa có sẵn)`,
                 position: 'top',
                 visibilityTime: 2500,
             });
         }
-    }, [product?.quantity, quantity]);
+    }, [product?.stock_quantity, product?.quantity, quantity]);
 
     const isLoading = productLoading || reviewsLoading;
 
@@ -286,12 +293,13 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
     const handleQuantityChange = (type) => {
         if (type === 'increase') {
-            if (quantity >= product.quantity) {
+            const currentStock = getStockQuantity();
+            if (quantity >= currentStock) {
                 // Show toast notification when trying to exceed stock
                 Toast.show({
                     type: 'error',
                     text1: 'Vượt quá số lượng kho',
-                    text2: `Chỉ còn ${product.quantity} sản phẩm trong kho`,
+                    text2: `Chỉ còn ${currentStock} sản phẩm trong kho`,
                     position: 'top',
                     visibilityTime: 2500,
                 });
@@ -320,11 +328,12 @@ const ProductDetailScreen = ({ navigation, route }) => {
         }
 
         // Validate quantity before adding to cart
-        if (quantity > product.quantity) {
+        const currentStock = getStockQuantity();
+        if (quantity > currentStock) {
             Toast.show({
                 type: 'error',
                 text1: 'Số lượng không hợp lệ',
-                text2: `Chỉ còn ${product.quantity} sản phẩm trong kho. Vui lòng giảm số lượng.`,
+                text2: `Chỉ còn ${currentStock} sản phẩm trong kho. Vui lòng giảm số lượng.`,
                 position: 'top',
                 visibilityTime: 3000,
             });
@@ -379,7 +388,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
     // Refresh function để fetch lại data khi cần
     const handleRefresh = useCallback(() => {
         if (productId) {
-            dispatch(fetchProductByIdAsync(productId));
+            dispatch(fetchProductById(productId));
             dispatch(fetchProductReviewsByProductId(productId));
 
             Toast.show({
@@ -456,7 +465,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
     }
 
     // Check if product is inactive (status = false)
-    if (product.status === false) {
+    if (product && product.status === false) {
         return (
             <SafeAreaView style={styles.container}>
                 <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
@@ -536,7 +545,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
                 {/* Product Image */}
                 <View style={styles.imageContainer}>
                     <Image
-                        source={product?.image ? { uri: resolveImageUrl(product.image) } : require('../assets/default-avatar.png')}
+                        source={product?.image_url || product?.image ? { uri: product.image_url || product.image } : require('../assets/favicon.png')}
                         style={styles.productImage}
                         resizeMode="contain"
                     />
@@ -544,7 +553,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
                 {/* Product Info */}
                 <View style={styles.productInfo}>
-                    <Text style={styles.productName}>{product.name}</Text>
+                    <Text style={styles.productName}>{product?.name || 'Tên sản phẩm'}</Text>
 
                     {/* Rating */}
                     <View style={styles.ratingContainer}>
@@ -557,7 +566,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
                     {/* Price and Quantity */}
                     <View style={styles.priceQuantityContainer}>
-                        <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+                        <Text style={styles.price}>{formatCurrency(product?.price || 0)}</Text>
                         <View style={styles.quantityContainer}>
                             <TouchableOpacity
                                 style={[
@@ -575,15 +584,15 @@ const ProductDetailScreen = ({ navigation, route }) => {
                             <TouchableOpacity
                                 style={[
                                     styles.quantityButton,
-                                    (quantity >= product.quantity || isOutOfStock) && styles.quantityButtonDisabled
+                                    (quantity >= stockQuantity || isOutOfStock) && styles.quantityButtonDisabled
                                 ]}
                                 onPress={() => handleQuantityChange('increase')}
-                                disabled={quantity >= product.quantity || isOutOfStock}
+                                disabled={quantity >= stockQuantity || isOutOfStock}
                             >
                                 <Icon
                                     name="add"
                                     size={20}
-                                    color={(quantity >= product.quantity || isOutOfStock) ? "#ccc" : "#666"}
+                                    color={(quantity >= stockQuantity || isOutOfStock) ? "#ccc" : "#666"}
                                 />
                             </TouchableOpacity>
                         </View>
@@ -592,7 +601,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
                     {/* Description */}
                     <View style={styles.section}>
                         <Text style={styles.sectionTitle}>Mô tả</Text>
-                        <Text style={styles.description}>{product.detail_desc}</Text>
+                        <Text style={styles.description}>{product?.description || product?.detail_desc || 'Không có mô tả'}</Text>
                     </View>
 
                     {/* Type and Rating */}
@@ -600,12 +609,14 @@ const ProductDetailScreen = ({ navigation, route }) => {
                         <Text style={styles.sectionTitle}>Thông tin sản phẩm</Text>
                         <View style={styles.featureItem}>
                             <Icon name="label" size={16} color="#4caf50" />
-                            <Text style={styles.featureText}>Danh mục: {product.category_id?.name || 'Chung'}</Text>
+                            <Text style={styles.featureText}>Danh mục: {product?.category_id?.name || product?.category?.name || 'Chung'}</Text>
                         </View>
-                        <View style={styles.featureItem}>
-                            <Icon name="category" size={16} color="#4caf50" />
-                            <Text style={styles.featureText}>Loại: {product.target}</Text>
-                        </View>
+                        {product?.target && (
+                            <View style={styles.featureItem}>
+                                <Icon name="category" size={16} color="#4caf50" />
+                                <Text style={styles.featureText}>Loại: {product.target}</Text>
+                            </View>
+                        )}
                         <View style={styles.featureItem}>
                             <Icon name="star" size={16} color="#4caf50" />
                             <Text style={styles.featureText}>Đánh giá: {averageRating.toFixed(1)}/5</Text>
@@ -620,7 +631,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
                                 styles.featureText,
                                 isOutOfStock && styles.outOfStockText
                             ]}>
-                                {isOutOfStock ? 'Hết hàng' : `Số lượng: ${product.quantity} sản phẩm`}
+                                {isOutOfStock ? 'Hết hàng' : `Số lượng: ${stockQuantity} sản phẩm`}
                             </Text>
                         </View>
                     </View>

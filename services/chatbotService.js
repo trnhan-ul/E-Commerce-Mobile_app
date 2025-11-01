@@ -1,11 +1,11 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-const API_KEY = 'keyapigemini';
+const API_KEY = 'key-gemini-1.5-flash';
 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 export async function sendMessageToBotApi(message) {
-    if (!API_KEY || API_KEY === 'YOUR_ACTUAL_API_KEY_HERE') {
+    if (!API_KEY) {
         throw new Error('API key is not configured properly');
     }
 
@@ -71,7 +71,7 @@ export async function sendMessageToBotApi(message) {
 
 // Alternative function using REST API approach (if SDK doesn't work)
 export async function sendMessageToBotApiRest(message) {
-    if (!API_KEY || API_KEY === 'YOUR_ACTUAL_API_KEY_HERE') {
+    if (!API_KEY) {
         throw new Error('API key is not configured properly');
     }
 

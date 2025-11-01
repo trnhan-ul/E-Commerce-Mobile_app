@@ -21,7 +21,7 @@ class AuthService {
       }
 
       const userId = await databaseService.addUser(user);
-      
+
       // Auto login after registration
       const loginResult = await this.login(userData.username, userData.password);
       return loginResult;
@@ -34,14 +34,22 @@ class AuthService {
   // Login user
   async login(username, password) {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        throw new Error('Database not ready');
+      }
+
+      // Database chỉ có email, không có username column
+      // Nên chỉ check email - parameter username thực ra là email
       const query = `
         SELECT * FROM users 
-        WHERE (username = ? OR email = ?) AND password = ?
+        WHERE email = ? AND password = ?
       `;
-      const user = await databaseService.db.getFirstAsync(query, [username, username, password]);
+      const user = await databaseService.db.getFirstAsync(query, [username, password]);
 
       if (!user) {
-        throw new Error('Invalid username or password');
+        throw new Error('Invalid email or password');
       }
 
       if (!user.is_active) {
@@ -50,7 +58,7 @@ class AuthService {
 
       // Generate token (in real app, use JWT)
       const token = this.generateToken(user.id);
-      
+
       // Store user data and token
       await AsyncStorage.setItem('token', token);
       await AsyncStorage.setItem('userData', JSON.stringify(user));
@@ -80,6 +88,12 @@ class AuthService {
   // Check if user exists
   async checkUserExists(username, email) {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        return false;
+      }
+
       const query = `
         SELECT id FROM users 
         WHERE username = ? OR email = ?
@@ -95,6 +109,12 @@ class AuthService {
   // Forgot password
   async forgotPassword(email) {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        throw new Error('Database not ready');
+      }
+
       const query = 'SELECT id, username FROM users WHERE email = ?';
       const user = await databaseService.db.getFirstAsync(query, [email]);
 
@@ -104,7 +124,7 @@ class AuthService {
 
       // Generate OTP (in real app, send via email/SMS)
       const otp = this.generateOTP();
-      
+
       // Store OTP temporarily (in real app, store in database with expiration)
       await AsyncStorage.setItem(`otp_${email}`, otp);
       await AsyncStorage.setItem(`otp_time_${email}`, Date.now().toString());
@@ -184,11 +204,11 @@ class AuthService {
       if (!userData) throw new Error('User not logged in');
 
       const user = JSON.parse(userData);
-      
+
       // Verify current password
       const query = 'SELECT id FROM users WHERE id = ? AND password = ?';
       const result = await databaseService.db.getFirstAsync(query, [user.id, currentPassword]);
-      
+
       if (!result) {
         throw new Error('Current password is incorrect');
       }
@@ -242,7 +262,7 @@ class AuthService {
 
       const user = JSON.parse(userData);
       const newToken = this.generateToken(user.id);
-      
+
       await AsyncStorage.setItem('token', newToken);
       return newToken;
     } catch (error) {
