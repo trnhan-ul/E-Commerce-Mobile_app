@@ -52,7 +52,7 @@ const OrderHistoryScreen = ({ navigation }) => {
     currentPage,
     hasMore,
     total,
-  } = useSelector((state) => state.order);
+  } = useSelector((state) => state.orders || { orders: [], isLoading: false, isLoadingMore: false, error: null, cancelSuccess: false, cancelMessage: null, currentPage: 1, hasMore: false, total: 0 });
 
   const dispatch = useDispatch();
 
@@ -169,7 +169,7 @@ const OrderHistoryScreen = ({ navigation }) => {
     });
   };
 
-  const orders = transformOrderData(orderData);
+  const orders = transformOrderData(orderData || []);
 
   // Filter orders based on selected filter
   const filteredOrders = orders.filter((order) => {
@@ -345,7 +345,7 @@ const OrderHistoryScreen = ({ navigation }) => {
   };
 
   // Initial loading state
-  if (orderLoading && !orderData.length) {
+  if (orderLoading && (!orderData || !orderData.length)) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar
@@ -372,7 +372,7 @@ const OrderHistoryScreen = ({ navigation }) => {
   }
 
   // Error state
-  if (orderError && !orderData.length) {
+  if (orderError && (!orderData || !orderData.length)) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar

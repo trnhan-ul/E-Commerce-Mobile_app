@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet, Animated, Dimensions } from 'react-native';
-import SvgIcon from './SvgIcon';
 
 const { width, height } = Dimensions.get('window');
 
@@ -48,8 +47,8 @@ export default function SplashScreen() {
             {/* Background gradient effect */}
             <View style={styles.backgroundCircle1} />
             <View style={styles.backgroundCircle2} />
-            
-            <Animated.View 
+
+            <Animated.View
                 style={[
                     styles.contentContainer,
                     {
@@ -70,7 +69,7 @@ export default function SplashScreen() {
                 <Text style={styles.subtitle}>One Commune One Product</Text>
 
                 {/* Custom Loading Indicator */}
-                <Animated.View 
+                <Animated.View
                     style={[
                         styles.customLoader,
                         { transform: [{ rotate: rotateInterpolate }] }
