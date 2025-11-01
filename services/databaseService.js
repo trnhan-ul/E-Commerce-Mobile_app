@@ -4,10 +4,33 @@ class DatabaseService {
     constructor() {
         this.db = null;
         this.isInitialized = false;
+        this.initPromise = null; // Để tránh khởi tạo nhiều lần
     }
 
     // Khởi tạo database
     async init() {
+        // Nếu đang khởi tạo, đợi nó hoàn thành
+        if (this.initPromise) {
+            return this.initPromise;
+        }
+
+        // Nếu đã khởi tạo rồi, return luôn
+        if (this.isInitialized && this.db) {
+            return true;
+        }
+
+        // Tạo promise mới cho lần khởi tạo này
+        this.initPromise = this._initDatabase();
+
+        try {
+            const result = await this.initPromise;
+            return result;
+        } finally {
+            this.initPromise = null;
+        }
+    }
+
+    async _initDatabase() {
         try {
             // Đảm bảo database được mở thành công
             if (!this.db) {
@@ -22,8 +45,10 @@ class DatabaseService {
             // Enable foreign keys trước khi tạo tables
             try {
                 await this.db.runAsync('PRAGMA foreign_keys = ON;');
+                // Tăng timeout để tránh database lock
+                await this.db.runAsync('PRAGMA busy_timeout = 5000;');
             } catch (error) {
-                console.warn('Warning: Could not enable foreign keys:', error);
+                console.warn('Warning: Could not set database pragmas:', error);
             }
 
             // Tạo tables
@@ -35,6 +60,7 @@ class DatabaseService {
         } catch (error) {
             console.error('Error initializing database:', error);
             this.isInitialized = false;
+            this.db = null;
             throw error;
         }
     }
@@ -418,6 +444,20 @@ class DatabaseService {
         }
     }
 
+    // Tìm kiếm categories
+    async searchCategories(query, limit = 20) {
+        try {
+            const result = await this.db.getAllAsync(
+                'SELECT * FROM categories WHERE name LIKE ? OR description LIKE ? ORDER BY name LIMIT ?',
+                [`%${query}%`, `%${query}%`, limit]
+            );
+            return result;
+        } catch (error) {
+            console.error('Error searching categories:', error);
+            return [];
+        }
+    }
+
     // ==================== USERS ====================
 
     // Tạo user mới
@@ -515,30 +555,47 @@ class DatabaseService {
     // Thêm sản phẩm vào giỏ hàng
     async addToCart(userId, productId, quantity = 1) {
         try {
-            // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
-            const existingItem = await this.db.getFirstAsync(
-                'SELECT * FROM cart WHERE user_id = ? AND product_id = ?',
-                [userId, productId]
-            );
-
-            if (existingItem) {
-                // Cập nhật số lượng
-                await this.db.runAsync(
-                    'UPDATE cart SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                    [quantity, existingItem.id]
-                );
-            } else {
-                // Thêm mới
-                await this.db.runAsync(
-                    'INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)',
-                    [userId, productId, quantity]
-                );
+            if (!this.db) {
+                throw new Error('Database not initialized');
             }
+
+            // Sử dụng transaction để tránh database lock
+            await this.db.withExclusiveTransactionAsync(async () => {
+                // Kiểm tra xem sản phẩm đã có trong giỏ hàng chưa
+                const existingItem = await this.db.getFirstAsync(
+                    'SELECT * FROM cart WHERE user_id = ? AND product_id = ?',
+                    [userId, productId]
+                );
+
+                if (existingItem) {
+                    // Cập nhật số lượng
+                    await this.db.runAsync(
+                        'UPDATE cart SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [quantity, existingItem.id]
+                    );
+                } else {
+                    // Thêm mới
+                    await this.db.runAsync(
+                        'INSERT INTO cart (user_id, product_id, quantity) VALUES (?, ?, ?)',
+                        [userId, productId, quantity]
+                    );
+                }
+            });
+
             return true;
         } catch (error) {
             console.error('Error adding to cart:', error);
-            return false;
+            throw error; // Throw error để caller biết có lỗi
         }
+    }
+
+    // Alias for addToCart - accepts object parameter
+    async addCartItem(cartItem) {
+        return await this.addToCart(
+            cartItem.user_id,
+            cartItem.product_id,
+            cartItem.quantity || 1
+        );
     }
 
     // Cập nhật số lượng trong giỏ hàng
@@ -586,29 +643,38 @@ class DatabaseService {
     // Tạo đơn hàng mới
     async createOrder(userId, cartItems, totalAmount, shippingAddress, paymentMethod, notes = '') {
         try {
-            // Tạo đơn hàng
-            const orderResult = await this.db.runAsync(
-                'INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)',
-                [userId, totalAmount, shippingAddress, paymentMethod, notes]
-            );
-
-            const orderId = orderResult.lastInsertRowId;
-
-            // Thêm các sản phẩm vào order_items
-            for (const item of cartItems) {
-                await this.db.runAsync(
-                    'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-                    [orderId, item.product_id, item.quantity, item.price]
-                );
+            if (!this.db) {
+                throw new Error('Database not initialized');
             }
 
-            // Xóa giỏ hàng
-            await this.clearCart(userId);
+            let orderId;
+
+            // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
+            await this.db.withExclusiveTransactionAsync(async () => {
+                // Tạo đơn hàng
+                const orderResult = await this.db.runAsync(
+                    'INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)',
+                    [userId, totalAmount, shippingAddress, paymentMethod, notes]
+                );
+
+                orderId = orderResult.lastInsertRowId;
+
+                // Thêm các sản phẩm vào order_items
+                for (const item of cartItems) {
+                    await this.db.runAsync(
+                        'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
+                        [orderId, item.product_id, item.quantity, item.price]
+                    );
+                }
+
+                // Xóa giỏ hàng
+                await this.db.runAsync('DELETE FROM cart WHERE user_id = ?', [userId]);
+            });
 
             return orderId;
         } catch (error) {
             console.error('Error creating order:', error);
-            return null;
+            throw error;
         }
     }
 

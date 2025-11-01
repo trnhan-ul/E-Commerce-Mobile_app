@@ -112,6 +112,13 @@ const OrderHistoryScreen = ({ navigation }) => {
     return apiOrders.map((order, index) => {
       // Map order status names to display format
       const statusMapping = {
+        pending: "Chờ xử lý",
+        confirmed: "Đã xác nhận",
+        shipping: "Đang giao",
+        delivered: "Đã giao",
+        cancelled: "Đã hủy",
+        returned: "Đã trả",
+        // Legacy support for uppercase
         PENDING: "Chờ xử lý",
         CONFIRMED: "Đã xác nhận",
         SHIPPED: "Đang giao",
@@ -130,13 +137,16 @@ const OrderHistoryScreen = ({ navigation }) => {
         "Đã trả": { color: "#ef4444", bg: "#fef2f2" },
       };
 
-      const status = statusMapping[order.order_status?.name] || "Chờ xử lý";
+      // Support both SQLite (status) and API (order_status.name) formats
+      const orderStatus = order.status || order.order_status?.name || 'pending';
+      const status = statusMapping[orderStatus] || "Chờ xử lý";
       const statusColor = statusColors[status] || statusColors["Chờ xử lý"];
 
-      // Format date
+      // Format date - support both created_at and createdAt
       const formatDate = (dateString) => {
+        if (!dateString) return 'N/A';
         const date = new Date(dateString);
-        return date.toLocaleDateString("en-US", {
+        return date.toLocaleDateString("vi-VN", {
           year: "numeric",
           month: "short",
           day: "numeric",
@@ -147,21 +157,25 @@ const OrderHistoryScreen = ({ navigation }) => {
       const firstItem =
         order.items && order.items.length > 0 ? order.items[0] : null;
 
+      // Support both id and order_id
+      const orderId = order.id || order.order_id || index + 1;
+      const orderIdStr = String(orderId);
+
       return {
-        id: `#ORD-${order.order_id.slice(-4).toUpperCase()}`,
-        orderId: order.order_id,
-        date: formatDate(order.createdAt),
-        items: order.items ? order.items.length : 1,
-        total: order.total_price,
+        id: `#ORD-${orderIdStr.padStart(4, '0')}`,
+        orderId: orderId,
+        date: formatDate(order.created_at || order.createdAt),
+        items: order.item_count || (order.items ? order.items.length : 1),
+        total: order.total_amount || order.calculated_total || order.total_price || 0,
         status: status,
         statusColor: statusColor.color,
         statusBg: statusColor.bg,
         product: {
           name: firstItem?.product_name || firstItem?.name || "Sản phẩm",
-          details: `Người nhận: ${order.receiver_name}`,
-          price: firstItem?.price || order.total_price,
+          details: `Người nhận: ${order.receiver_name || 'N/A'}`,
+          price: firstItem?.price || order.total_amount || order.total_price || 0,
           image:
-            firstItem?.image ||
+            firstItem?.image || firstItem?.image_url ||
             "https://res.cloudinary.com/dkbsae4kc/image/upload/v1747706328/avatars/mfwbvrkvqcsv6kgze587.png",
         },
         originalOrder: order,
@@ -313,10 +327,10 @@ const OrderHistoryScreen = ({ navigation }) => {
                 {order.status === "Đã giao"
                   ? "Đánh giá"
                   : order.status === "Chờ xử lý"
-                  ? "Hủy đơn hàng"
-                  : order.status === "Đã trả"
-                  ? "Xem chi tiết"
-                  : "Xem chi tiết"}
+                    ? "Hủy đơn hàng"
+                    : order.status === "Đã trả"
+                      ? "Xem chi tiết"
+                      : "Xem chi tiết"}
               </Text>
             )}
           </TouchableOpacity>

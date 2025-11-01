@@ -47,7 +47,7 @@ const CartScreen = ({ navigation }) => {
         id: item.product_id,
         name: item.name,
         price: item.price, // Giữ nguyên giá VND
-        image: item.image,
+        image: item.image_url || item.image, // Support both field names
         quantity: item.quantity,
         color: "Default",
         subtotal: item.subtotal,

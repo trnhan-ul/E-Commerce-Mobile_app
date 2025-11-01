@@ -13,7 +13,7 @@ import {
     Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchProductsAsync, fetchProductsByCategoryAsync, resetAllProducts } from '../store/slices/productSlice';
+import { fetchProducts, fetchProductsByCategory, resetProducts } from '../store/slices/productSlice';
 import ProductCard from '../components/ProductCard';
 import CategorySection from '../components/CategorySection';
 import { InlineLoading, FooterLoading } from '../components/Loading';
@@ -25,40 +25,42 @@ const { width, height } = Dimensions.get('window');
 
 const AllProductsScreen = ({ navigation, route }) => {
     const dispatch = useDispatch();
-    const { allProducts, isLoading, pagination } = useSelector((state) => state.product);
-    const { categories } = useSelector((state) => state.category); // Lấy categories từ store
+    const { products, categoryProducts, loading } = useSelector((state) => state.products);
+    const { categories } = useSelector((state) => state.categories);
     const [refreshing, setRefreshing] = useState(false);
     const [searchText, setSearchText] = useState('');
     const [isSearchVisible, setIsSearchVisible] = useState(false);
-    const [currentSearch, setCurrentSearch] = useState(''); // Track current search term for API
-    const ITEMS_PER_PAGE = 6;
+    const [currentSearch, setCurrentSearch] = useState('');
+    const ITEMS_PER_PAGE = 20;
 
-    // Get category info from route params (for display only)
+    // Get category info from route params
+    const categoryId = route.params?.categoryId;
     const categoryName = route.params?.categoryName;
 
+    // Determine which products to display
+    const displayProducts = categoryId ? categoryProducts : products;
+    const isLoading = loading;
+
     useEffect(() => {
-
-
-        if (categoryName) {
-            // If navigated with categoryName, fetch products by category
-            dispatch(fetchProductsByCategoryAsync({
-                category_name: categoryName,
-                page: 1,
-                limit: ITEMS_PER_PAGE
+        if (categoryId) {
+            // Fetch products by category
+            dispatch(fetchProductsByCategory({
+                categoryId: categoryId,
+                limit: ITEMS_PER_PAGE,
+                offset: 0
             }));
         } else {
-            // Otherwise, fetch all products
-            dispatch(fetchProductsAsync({
-                page: 1,
+            // Fetch all products
+            dispatch(fetchProducts({
                 limit: ITEMS_PER_PAGE,
-                isAllProducts: true,
-                search: null
+                offset: 0
             }));
         }
+
         return () => {
-            dispatch(resetAllProducts());
+            dispatch(resetProducts());
         };
-    }, [dispatch, categoryName]);
+    }, [dispatch, categoryId]);
 
 
 
@@ -66,52 +68,46 @@ const AllProductsScreen = ({ navigation, route }) => {
 
     const handleRefresh = useCallback(() => {
         setRefreshing(true);
-        dispatch(resetAllProducts());
+        dispatch(resetProducts());
 
-        if (categoryName) {
+        if (categoryId) {
             // Refresh category products
-            dispatch(fetchProductsByCategoryAsync({
-                category_name: categoryName,
-                page: 1,
-                limit: ITEMS_PER_PAGE
+            dispatch(fetchProductsByCategory({
+                categoryId: categoryId,
+                limit: ITEMS_PER_PAGE,
+                offset: 0
             }));
         } else {
-            // Refresh all products or search results
-            dispatch(fetchProductsAsync({
-                page: 1,
+            // Refresh all products
+            dispatch(fetchProducts({
                 limit: ITEMS_PER_PAGE,
-                isAllProducts: true,
-                search: currentSearch
+                offset: 0
             }));
         }
         setRefreshing(false);
-    }, [dispatch, currentSearch, categoryName]);
+    }, [dispatch, categoryId]);
 
     const handleLoadMore = useCallback(() => {
-        // Additional conditions to prevent unnecessary loading
-        if (!isLoading && pagination.hasMore && allProducts.length >= ITEMS_PER_PAGE) {
-            const pageToLoad = pagination.currentPage + 1;
+        // For simple pagination, just fetch more with offset
+        if (!isLoading && displayProducts.length >= ITEMS_PER_PAGE) {
+            const offset = displayProducts.length;
 
-
-
-            if (categoryName && !currentSearch) {
+            if (categoryId) {
                 // Load more category products
-                dispatch(fetchProductsByCategoryAsync({
-                    category_name: categoryName,
-                    page: pageToLoad,
-                    limit: ITEMS_PER_PAGE
+                dispatch(fetchProductsByCategory({
+                    categoryId: categoryId,
+                    limit: ITEMS_PER_PAGE,
+                    offset: offset
                 }));
             } else {
-                // Load more all products or search results
-                dispatch(fetchProductsAsync({
-                    page: pageToLoad,
+                // Load more all products
+                dispatch(fetchProducts({
                     limit: ITEMS_PER_PAGE,
-                    isAllProducts: true,
-                    search: currentSearch
+                    offset: offset
                 }));
             }
         }
-    }, [isLoading, pagination.hasMore, pagination.currentPage, currentSearch, categoryName, dispatch, allProducts.length]);
+    }, [isLoading, displayProducts.length, categoryId, dispatch]);
 
     const handleSearchPress = () => {
         setSearchText(currentSearch || ''); // Set current search when opening modal
@@ -127,17 +123,15 @@ const AllProductsScreen = ({ navigation, route }) => {
     const handleSearch = () => {
         if (searchText.trim() !== currentSearch) {
             setCurrentSearch(searchText.trim());
-            const searchToUse = searchText.trim() || null;
-            dispatch(resetAllProducts());
-            setIsSearchVisible(false); // Close modal before starting search
-            dispatch(fetchProductsAsync({
-                page: 1,
+            dispatch(resetProducts());
+            setIsSearchVisible(false);
+            // TODO: Implement search functionality
+            dispatch(fetchProducts({
                 limit: ITEMS_PER_PAGE,
-                isAllProducts: true,
-                search: searchToUse
+                offset: 0
             }));
         } else {
-            setIsSearchVisible(false); // Close modal if search term is same
+            setIsSearchVisible(false);
         }
     };
 
@@ -145,22 +139,20 @@ const AllProductsScreen = ({ navigation, route }) => {
         setSearchText('');
         if (currentSearch !== '') {
             setCurrentSearch('');
-            dispatch(resetAllProducts());
+            dispatch(resetProducts());
 
-            if (categoryName) {
+            if (categoryId) {
                 // Return to category filtering
-                dispatch(fetchProductsByCategoryAsync({
-                    category_name: categoryName,
-                    page: 1,
-                    limit: ITEMS_PER_PAGE
+                dispatch(fetchProductsByCategory({
+                    categoryId: categoryId,
+                    limit: ITEMS_PER_PAGE,
+                    offset: 0
                 }));
             } else {
                 // Return to all products
-                dispatch(fetchProductsAsync({
-                    page: 1,
+                dispatch(fetchProducts({
                     limit: ITEMS_PER_PAGE,
-                    isAllProducts: true,
-                    search: null
+                    offset: 0
                 }));
             }
         }
@@ -237,7 +229,7 @@ const AllProductsScreen = ({ navigation, route }) => {
                                 Tìm kiếm hiện tại: "{currentSearch}"
                             </Text>
                             <Text style={styles.searchResultsSubText}>
-                                Tìm thấy {allProducts.length} sản phẩm
+                                Tìm thấy {displayProducts.length} sản phẩm
                             </Text>
                         </View>
                     )}
@@ -270,7 +262,7 @@ const AllProductsScreen = ({ navigation, route }) => {
                             {currentSearch ? 'Kết quả tìm kiếm' : (categoryName || 'Tất cả sản phẩm')}
                         </Text>
                         <Text style={styles.headerSubtitle}>
-                            {allProducts.length} sản phẩm
+                            {displayProducts.length} sản phẩm
                             {currentSearch ? ` cho "${currentSearch}"` : ''}
                         </Text>
                     </View>
@@ -319,24 +311,24 @@ const AllProductsScreen = ({ navigation, route }) => {
 
     // Loading footer component
     const LoadingFooter = () => {
-        if (!isLoading || !pagination.hasMore) return null;
+        if (!isLoading) return null;
 
         return <FooterLoading text="Đang tải thêm sản phẩm..." />;
     };
 
     // No more items footer
     const NoMoreFooter = () => {
-        if (pagination.hasMore || allProducts.length === 0) return null;
+        if (displayProducts.length === 0) return null;
 
         return (
             <View style={styles.noMoreFooter}>
                 <Text style={styles.noMoreText}>Không còn sản phẩm nào để tải</Text>
-                <Text style={styles.totalProductsText}>Tổng cộng: {allProducts.length} sản phẩm</Text>
+                <Text style={styles.totalProductsText}>Tổng cộng: {displayProducts.length} sản phẩm</Text>
             </View>
         );
     };
 
-    const isInitialLoading = isLoading && pagination.currentPage === 1 && allProducts.length === 0;
+    const isInitialLoading = isLoading && displayProducts.length === 0;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -348,9 +340,9 @@ const AllProductsScreen = ({ navigation, route }) => {
                     <InlineLoading text="Đang tải sản phẩm..." style={styles.loadingContainer} />
                 ) : (
                     <FlatList
-                        data={allProducts}
+                        data={displayProducts}
                         renderItem={renderItem}
-                        keyExtractor={(item) => item._id}
+                        keyExtractor={(item) => (item.id || item._id).toString()}
                         numColumns={2}
                         contentContainerStyle={[styles.listContent, { paddingBottom: 100 }]}
                         onRefresh={handleRefresh}
@@ -389,21 +381,19 @@ const AllProductsScreen = ({ navigation, route }) => {
                                     <TouchableOpacity
                                         style={styles.retryButton}
                                         onPress={() => {
-                                            dispatch(resetAllProducts());
-                                            if (categoryName && !currentSearch) {
+                                            dispatch(resetProducts());
+                                            if (categoryId) {
                                                 // Retry category products
-                                                dispatch(fetchProductsByCategoryAsync({
-                                                    category_name: categoryName,
-                                                    page: 1,
-                                                    limit: ITEMS_PER_PAGE
+                                                dispatch(fetchProductsByCategory({
+                                                    categoryId: categoryId,
+                                                    limit: ITEMS_PER_PAGE,
+                                                    offset: 0
                                                 }));
                                             } else {
-                                                // Retry all products or search
-                                                dispatch(fetchProductsAsync({
-                                                    page: 1,
+                                                // Retry all products
+                                                dispatch(fetchProducts({
                                                     limit: ITEMS_PER_PAGE,
-                                                    isAllProducts: true,
-                                                    search: currentSearch
+                                                    offset: 0
                                                 }));
                                             }
                                         }}
