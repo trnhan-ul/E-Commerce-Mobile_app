@@ -120,10 +120,12 @@ const ProductCard = ({ product }) => {
             >
                 <View style={styles.imageContainer}>
                     <Image
-                        source={product?.image ? { uri: product.image } : require('../assets/favicon.png')}
+                        source={(product?.image_url || product?.image) ? { uri: product.image_url || product.image } : require('../assets/favicon.png')}
                         style={styles.image}
                         resizeMode="contain"
-                        onError={(e) => { /* silent image error */ }}
+                        onError={(e) => { 
+                            console.log('Image load error:', product?.image_url || product?.image);
+                        }}
                     />
                     {/* Out of stock overlay */}
                     {isOutOfStock && (
