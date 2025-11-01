@@ -8,28 +8,34 @@ class OrderService {
       const userId = await this.getCurrentUserId();
       if (!userId) throw new Error('User not logged in');
 
-      const order = {
-        user_id: userId,
-        total_amount: orderData.total_amount,
-        shipping_address: orderData.shipping_address,
-        payment_method: orderData.payment_method || 'cod',
-        status: 'pending',
-        notes: orderData.notes || ''
-      };
+      console.log('OrderService - Creating order with data:', orderData);
 
-      const orderId = await databaseService.addOrder(order);
-
-      // Add order items
-      if (orderData.items && orderData.items.length > 0) {
-        for (const item of orderData.items) {
-          await databaseService.addOrderItem({
-            order_id: orderId,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            price: item.price
-          });
-        }
+      // Validate required fields
+      if (!orderData.total_amount || orderData.total_amount <= 0) {
+        throw new Error('Invalid total amount');
       }
+
+      if (!orderData.shipping_address) {
+        throw new Error('Shipping address is required');
+      }
+
+      if (!orderData.items || orderData.items.length === 0) {
+        throw new Error('Order must have at least one item');
+      }
+
+      console.log('OrderService - Calling databaseService.createOrder');
+
+      // Use databaseService.createOrder which handles everything in a transaction
+      const orderId = await databaseService.createOrder(
+        userId,
+        orderData.items,
+        parseFloat(orderData.total_amount),
+        orderData.shipping_address,
+        orderData.payment_method || 'cod',
+        orderData.notes || ''
+      );
+
+      console.log('OrderService - Order created successfully with ID:', orderId);
 
       return orderId;
     } catch (error) {
@@ -97,7 +103,23 @@ class OrderService {
       query += ' GROUP BY o.id ORDER BY o.created_at DESC LIMIT ? OFFSET ?';
       params.push(limit, offset);
 
-      return await databaseService.db.getAllAsync(query, params);
+      const orders = await databaseService.db.getAllAsync(query, params);
+
+      // Get items for each order
+      const ordersWithItems = await Promise.all(
+        orders.map(async (order) => {
+          const itemsQuery = `
+            SELECT oi.*, p.name, p.image_url
+            FROM order_items oi
+            LEFT JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id = ?
+          `;
+          const items = await databaseService.db.getAllAsync(itemsQuery, [order.id]);
+          return { ...order, items };
+        })
+      );
+
+      return ordersWithItems;
     } catch (error) {
       console.error('OrderService - Error getting user orders:', error);
       throw error;
