@@ -62,9 +62,10 @@ export default function AppNavigator() {
   return (
     <NavigationContainer ref={navigationRef}>
       {/* ✅ Chỉ hiển thị Chatbot nếu đã đăng nhập và không phải admin */}
-      {isAuthenticated && user?.role_name !== 'admin' && <ChatBotModal />}
+      {/* Support cả role_name (MongoDB) và role (SQLite) */}
+      {isAuthenticated && (user?.role_name || user?.role)?.toLowerCase() !== 'admin' && <ChatBotModal />}
 
-      <Stack.Navigator 
+      <Stack.Navigator
         screenOptions={{ headerShown: false }}
         initialRouteName="HomePage"
       >
@@ -72,21 +73,27 @@ export default function AppNavigator() {
         <Stack.Screen name="HomePage" component={HomeScreen} />
         <Stack.Screen name="ProductDetail" component={ProductDetailScreen} />
         <Stack.Screen name="AllProducts" component={AllProductsScreen} />
-        
+
         {/* Auth routes */}
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
         <Stack.Screen name="VerifyOtp" component={RegisterConfirmOTPScreen} />
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ForgotPasswordOTP" component={ForgotPasswordOTPScreen} />
-        
+
         {/* Protected routes - Chỉ user đã đăng nhập mới xem được */}
         {isAuthenticated && (
           <>
-            {user?.role_name === 'admin' ? (
-              <Stack.Screen name="Admin" component={AdminScreen} />
+            {/* Support cả role_name (MongoDB) và role (SQLite) */}
+            {(user?.role_name || user?.role)?.toLowerCase() === 'admin' ? (
+              <>
+                {/* Admin có thể truy cập AdminScreen và Profile */}
+                <Stack.Screen name="Admin" component={AdminScreen} />
+                <Stack.Screen name="Profile" component={ProfileScreen} />
+              </>
             ) : (
               <>
+                {/* User có thể truy cập tất cả screens */}
                 <Stack.Screen name="Cart" component={CartScreen} />
                 <Stack.Screen name="Profile" component={ProfileScreen} />
                 <Stack.Screen name="Payment" component={PaymentScreen} />

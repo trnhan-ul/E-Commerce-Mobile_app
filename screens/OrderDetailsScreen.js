@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
-import { resolveImageUrl } from "../utils/resolveImageUrl";
 import { useRoute } from "@react-navigation/native";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -28,16 +27,19 @@ import {
   clearOrderState,
 } from "../store/slices/orderSlice";
 import { formatCurrency } from "../utils/formatCurrency";
+import orderService from "../services/orderService";
 
 const OrderDetailsScreen = ({ navigation }) => {
   const route = useRoute();
-  const { orderData, orderDataColor, orderDataBg } = route.params;
+  const { orderData: initialOrderData, orderDataColor, orderDataBg, orderId } = route.params || {};
+  const [orderData, setOrderData] = useState(initialOrderData);
+  const [loadingOrder, setLoadingOrder] = useState(!initialOrderData && !!orderId);
 
   const dispatch = useDispatch();
   const reviewState = useSelector((state) => state.review);
   const { isLoading, error, successMessage, review } = reviewState;
 
-  const orderState = useSelector((state) => state.order);
+  const orderState = useSelector((state) => state.orders || { isLoading: false, cancelSuccess: false, cancelMessage: null, returnSuccess: false, returnMessage: null, error: null });
   const {
     isLoading: orderLoading,
     cancelSuccess,
@@ -57,24 +59,128 @@ const OrderDetailsScreen = ({ navigation }) => {
     DELIVERED: "Đã giao",
     CANCELLED: "Đã hủy",
     RETURNED: "Đã trả",
+    pending: "Chờ xử lý",
+    confirmed: "Đã xác nhận",
+    shipped: "Đang giao",
+    delivered: "Đã giao",
+    cancelled: "Đã hủy",
+    returned: "Đã trả",
   };
 
-  const [orderStatus, setOrderStatus] = useState(
-    statusMapping[orderData?.order_status?.name] || "Chờ xử lý"
-  );
+  // Fetch order data if only orderId is provided
+  useEffect(() => {
+    const fetchOrder = async () => {
+      if (!initialOrderData && orderId) {
+        try {
+          setLoadingOrder(true);
+          const isReady = await orderService.ensureDatabaseReady?.() ?? true;
+          if (!isReady) {
+            console.warn('Database not ready');
+            setLoadingOrder(false);
+            return;
+          }
+          const order = await orderService.getOrderById(orderId);
+          if (order) {
+            // Transform order to match expected format
+            const transformedOrder = {
+              order_id: order.id || order.order_id,
+              order_status: {
+                name: order.status || 'pending'
+              },
+              createdAt: order.created_at || order.createdAt || new Date().toISOString(),
+              total_price: order.total_amount || order.total_price || order.calculated_total || 0,
+              receiver_name: order.receiver_name || 'N/A',
+              receiver_address: order.shipping_address || order.receiver_address || 'N/A',
+              receiver_phone: order.receiver_phone || 'N/A',
+              items: (Array.isArray(order.items) ? order.items : []).map(item => ({
+                product_id: item.product_id || item.id,
+                name: item.product_name || item.name || 'Unknown',
+                image: item.product_image || item.image_url,
+                price: item.price || 0,
+                quantity: item.quantity || 0,
+                subtotal: (item.price || 0) * (item.quantity || 0),
+                order_details_id: item.id
+              }))
+            };
+            setOrderData(transformedOrder);
+          } else {
+            Alert.alert('Lỗi', 'Không tìm thấy đơn hàng', [
+              { text: 'OK', onPress: () => navigation.goBack() }
+            ]);
+          }
+        } catch (error) {
+          console.error('Error fetching order:', error);
+          Alert.alert('Lỗi', 'Không thể tải thông tin đơn hàng', [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        } finally {
+          setLoadingOrder(false);
+        }
+      } else if (initialOrderData) {
+        // Ensure initialOrderData has required structure
+        const safeOrderData = {
+          ...initialOrderData,
+          items: Array.isArray(initialOrderData.items) ? initialOrderData.items : [],
+          order_id: initialOrderData.order_id || initialOrderData.id || initialOrderData._id,
+          total_price: initialOrderData.total_price || initialOrderData.total_amount || 0
+        };
+        setOrderData(safeOrderData);
+      }
+    };
+
+    fetchOrder();
+  }, [orderId, initialOrderData, navigation]);
+
+  // Initialize orderStatus safely
+  const getInitialStatus = () => {
+    if (!initialOrderData) return "Chờ xử lý";
+    const status = initialOrderData.order_status?.name || initialOrderData.status || 'pending';
+    return statusMapping[status] || "Chờ xử lý";
+  };
+
+  const [orderStatus, setOrderStatus] = useState(getInitialStatus());
   const [isRefetchingReviews, setIsRefetchingReviews] = useState(false);
 
-  const initialRatings = {};
-  const initialReviews = {};
-  const initialSubmittedReviews = {};
-  const initialExistingReviews = {};
+  // Initialize ratings and reviews safely
+  const getInitialData = () => {
+    const initialRatings = {};
+    const initialReviews = {};
+    const initialSubmittedReviews = {};
+    const initialExistingReviews = {};
 
-  orderData?.items?.forEach((item) => {
-    initialRatings[item.product_id] = 0;
-    initialReviews[item.product_id] = "";
-    initialExistingReviews[item.product_id] = null;
-    initialSubmittedReviews[item.product_id] = false;
-  });
+    if (initialOrderData && Array.isArray(initialOrderData.items)) {
+      initialOrderData.items.forEach((item) => {
+        if (item && item.product_id) {
+          initialRatings[item.product_id] = 0;
+          initialReviews[item.product_id] = "";
+          initialExistingReviews[item.product_id] = null;
+          initialSubmittedReviews[item.product_id] = false;
+        }
+      });
+    }
+
+    return {
+      initialRatings,
+      initialReviews,
+      initialSubmittedReviews,
+      initialExistingReviews
+    };
+  };
+
+  const { initialRatings, initialReviews, initialSubmittedReviews, initialExistingReviews } = getInitialData();
+
+  // Update orderStatus when orderData changes
+  useEffect(() => {
+    if (orderData) {
+      try {
+        const status = orderData.order_status?.name || orderData.status || 'pending';
+        setOrderStatus(statusMapping[status] || "Chờ xử lý");
+      } catch (error) {
+        console.error('Error updating order status:', error);
+        setOrderStatus("Chờ xử lý");
+      }
+    }
+  }, [orderData]);
 
   const [ratings, setRatings] = useState(initialRatings);
   const [reviews, setReviews] = useState(initialReviews);
@@ -88,6 +194,7 @@ const OrderDetailsScreen = ({ navigation }) => {
 
   useEffect(() => {
     const fetchReviews = async () => {
+      if (!orderData?.order_id) return;
       setIsRefetchingReviews(true);
       try {
         await dispatch(getReviewsByOrderId(orderData.order_id));
@@ -95,26 +202,31 @@ const OrderDetailsScreen = ({ navigation }) => {
         setIsRefetchingReviews(false);
       }
     };
-    fetchReviews();
-  }, [dispatch]);
+    if (orderData) {
+      fetchReviews();
+    }
+  }, [dispatch, orderData]);
 
   useEffect(() => {
-    if (Array.isArray(review)) {
+    if (Array.isArray(review) && orderData && Array.isArray(orderData.items)) {
       const newRatings = {};
       const newReviews = {};
       const newSubmittedReviews = {};
       const newExistingReviews = {};
 
-      orderData?.items?.forEach((item) => {
-        const productId = item.product_id;
-        const existingReview = review.find(
-          (r) => r.product && r.product._id === productId
-        );
+      orderData.items.forEach((item) => {
+        if (item && item.product_id) {
+          const productId = item.product_id;
+          const existingReview = review.find(
+            (r) => (r.product && (r.product._id === productId || r.product.id === productId)) ||
+              (r.product_id === productId || r.productId === productId)
+          );
 
-        newRatings[productId] = existingReview?.rating || 0;
-        newReviews[productId] = existingReview?.content || "";
-        newSubmittedReviews[productId] = !!existingReview;
-        newExistingReviews[productId] = existingReview || null;
+          newRatings[productId] = existingReview?.rating || 0;
+          newReviews[productId] = existingReview?.content || "";
+          newSubmittedReviews[productId] = !!existingReview;
+          newExistingReviews[productId] = existingReview || null;
+        }
       });
 
       setRatings(newRatings);
@@ -122,7 +234,7 @@ const OrderDetailsScreen = ({ navigation }) => {
       setSubmittedReviews(newSubmittedReviews);
       setExistingReviews(newExistingReviews);
     }
-  }, [review, orderData?.items]);
+  }, [review, orderData]);
 
   useEffect(() => {
     if (successMessage && !isLoading && !error && !alertShownRef.current) {
@@ -137,7 +249,9 @@ const OrderDetailsScreen = ({ navigation }) => {
 
             setIsRefetchingReviews(true);
             try {
-              await dispatch(getReviewsByOrderId(orderData.order_id));
+              if (orderData?.order_id) {
+                await dispatch(getReviewsByOrderId(orderData.order_id));
+              }
             } finally {
               setIsRefetchingReviews(false);
             }
@@ -398,7 +512,7 @@ const OrderDetailsScreen = ({ navigation }) => {
                 (orderStatus !== "Đã giao" ||
                   (hasReviewed && !isEditing) ||
                   isRefetchingReviews) &&
-                  styles.disabledStar,
+                styles.disabledStar,
               ]}
             />
           </TouchableOpacity>
@@ -434,8 +548,8 @@ const OrderDetailsScreen = ({ navigation }) => {
           {hasReviewed && !isEditing
             ? "Đánh giá của bạn"
             : hasReviewed && isEditing
-            ? "Chỉnh sửa đánh giá"
-            : "Đánh giá sản phẩm này"}
+              ? "Chỉnh sửa đánh giá"
+              : "Đánh giá sản phẩm này"}
         </Text>
         {renderStars(productId)}
 
@@ -550,6 +664,29 @@ const OrderDetailsScreen = ({ navigation }) => {
     );
   };
 
+  // Show loading if fetching order
+  if (loadingOrder || !orderData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Chi tiết đơn hàng</Text>
+          <View style={styles.headerSpacer} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1CD4D4" />
+          <Text style={styles.loadingText}>Đang tải thông tin đơn hàng...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
@@ -631,8 +768,8 @@ const OrderDetailsScreen = ({ navigation }) => {
                   <Image
                     source={
                       item?.image
-                        ? { uri: resolveImageUrl(item.image) }
-                        : require("../assets/default-avatar.png")
+                        ? { uri: item.image }
+                        : require("../assets/favicon.png")
                     }
                     style={styles.productImage}
                   />

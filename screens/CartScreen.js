@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { MaterialIcons as Icon } from "@expo/vector-icons";
-import { resolveImageUrl } from "../utils/resolveImageUrl";
 import { LinearGradient } from "expo-linear-gradient";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -494,8 +493,8 @@ const CartScreen = ({ navigation }) => {
           <Image
             source={
               item?.image
-                ? { uri: resolveImageUrl(item.image) }
-                : require("../assets/default-avatar.png")
+                ? { uri: item.image }
+                : require("../assets/favicon.png")
             }
             style={[styles.itemImage, isUnavailable && styles.unavailableImage]}
             resizeMode="contain"
@@ -859,7 +858,7 @@ const CartScreen = ({ navigation }) => {
             style={[
               styles.checkoutButton,
               (isLoading || selectedItems.length === 0) &&
-                styles.disabledButton,
+              styles.disabledButton,
             ]}
             onPress={handleCheckout}
             disabled={isLoading || selectedItems.length === 0}
@@ -868,8 +867,8 @@ const CartScreen = ({ navigation }) => {
               {isLoading
                 ? "Đang cập nhật..."
                 : selectedItems.length === 0
-                ? "Chọn sản phẩm để thanh toán"
-                : `Tiến hành thanh toán (${selectedItems.length} sản phẩm)`}
+                  ? "Chọn sản phẩm để thanh toán"
+                  : `Tiến hành thanh toán (${selectedItems.length} sản phẩm)`}
             </Text>
           </TouchableOpacity>
         </View>

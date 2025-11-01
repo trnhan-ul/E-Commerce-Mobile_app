@@ -8,19 +8,21 @@ import FeaturedNewProducts from '../components/FeaturedNewProducts';
 import FeaturedTopProducts from '../components/FeaturedTopProducts';
 import BottomNavigation from '../components/BottomNavigation';
 import { InlineLoading } from '../components/Loading';
-import { fetchCategoriesAsync } from '../store/slices/categorySlice';
-import { fetchProductsAsync } from '../store/slices/productSlice';
+import { fetchCategories } from '../store/slices/categorySlice';
+import { fetchProducts, fetchNewProducts, fetchFeaturedProducts } from '../store/slices/productSlice';
 import { COLORS } from '../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
 
 const HomeScreen = () => {
     const dispatch = useDispatch();
-    const { isLoading: isCategoryLoading, categories } = useSelector((state) => state.category);
-    const { isLoading: isProductLoading, products } = useSelector((state) => state.product);
+    const { loading: isCategoryLoading, categories } = useSelector((state) => state.categories || { loading: false, categories: [] });
+    const { loading: isProductLoading, newProducts } = useSelector((state) => state.products || { loading: false, newProducts: [] });
 
     useEffect(() => {
-        dispatch(fetchCategoriesAsync({ page: 1, limit: 20 }));
-        dispatch(fetchProductsAsync({ page: 1, limit: 10 }));
+        dispatch(fetchCategories());
+        dispatch(fetchProducts({ limit: 20, offset: 0 }));
+        dispatch(fetchNewProducts(10));
+        dispatch(fetchFeaturedProducts(10));
     }, [dispatch]);
 
     const isLoading = isCategoryLoading || isProductLoading;
@@ -57,7 +59,7 @@ const HomeScreen = () => {
                     ) : (
                         <>
                             <CategorySection categories={categories} />
-                            <FeaturedNewProducts products={products} title="Sản phẩm mới" />
+                            <FeaturedNewProducts products={newProducts} title="Sản phẩm mới" />
                             <FeaturedTopProducts title="Bán chạy nhất" />
                         </>
                     )}

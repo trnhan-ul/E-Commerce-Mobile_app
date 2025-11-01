@@ -17,8 +17,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useDispatch } from "react-redux";
 import { createOrderAsync } from "../store/slices/orderSlice";
 import { formatCurrency } from "../utils/formatCurrency";
-import { resolveImageUrl } from "../utils/resolveImageUrl";
-
 const BuyNowScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
   const { product, quantity } = route.params || {};
@@ -60,7 +58,7 @@ const BuyNowScreen = ({ navigation, route }) => {
     }
   };
 
-  const imageUri = resolveImageUrl(product?.image);
+  const imageUri = product?.image || null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -87,9 +85,9 @@ const BuyNowScreen = ({ navigation, route }) => {
           <View style={styles.productCard}>
             <Image
               source={
-                imageUri
-                  ? { uri: imageUri }
-                  : require("../assets/default-avatar.png")
+                product?.image
+                  ? { uri: product.image }
+                  : require("../assets/favicon.png")
               }
               style={styles.productImage}
               resizeMode="contain"
