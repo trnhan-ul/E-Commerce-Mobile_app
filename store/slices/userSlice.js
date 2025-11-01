@@ -1,25 +1,27 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getUserProfileApi, updateUserProfileApi, changePasswordApi } from '../../services/userService';
+import userService from '../../services/userService';
 
 export const fetchUserProfile = createAsyncThunk(
     'user/fetchUserProfile',
     async (_, { rejectWithValue }) => {
         try {
-            const response = await getUserProfileApi();
+            const response = await userService.getUserProfile();
             return response;
-
         } catch (error) {
             return rejectWithValue(error.message);
         }
     }
 );
 
-
 export const updateUserProfile = createAsyncThunk(
     'user/updateUserProfile',
-    async ({ user_name, avatar }, { rejectWithValue }) => {
+    async ({ user_name, avatar, ...otherData }, { rejectWithValue }) => {
         try {
-            const response = await updateUserProfileApi({ user_name, avatar });
+            const response = await userService.updateUserProfile({
+                username: user_name,
+                avatar_url: avatar,
+                ...otherData
+            });
             return response;
         } catch (error) {
             return rejectWithValue(error.message);
@@ -31,9 +33,8 @@ export const changePassword = createAsyncThunk(
     'user/changePassword',
     async ({ old_password, new_password }, { rejectWithValue }) => {
         try {
-            const response = await changePasswordApi({ old_password, new_password });
-
-            return response.message;
+            const result = await userService.changePassword(old_password, new_password);
+            return result ? 'Password changed successfully' : 'Failed to change password';
         } catch (error) {
             return rejectWithValue(error.message);
         }

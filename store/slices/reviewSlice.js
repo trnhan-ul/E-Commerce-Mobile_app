@@ -1,206 +1,315 @@
-import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
-import { createReviewApi, updateReviewApi, getReviewsByOrderIdApi, getProductReviewsByProductId } from '../../services/reviewService';
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSelector } from '@reduxjs/toolkit';
+import reviewService from '../../services/reviewService';
 
+// Async thunks
+export const fetchProductReviews = createAsyncThunk(
+  'reviews/fetchProductReviews',
+  async ({ productId, limit = 20, offset = 0 }, { rejectWithValue }) => {
+    try {
+      const reviews = await reviewService.getProductReviewsByProductId(productId);
+      return { productId, reviews };
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
-// Async thunk for fetching product reviews by product ID
+// Alias for fetchProductReviews (backward compatibility)
 export const fetchProductReviewsByProductId = createAsyncThunk(
-    'review/fetchProductReviewsByProductId',
-    async (product_id, { rejectWithValue }) => {
-        try {
-            const response = await getProductReviewsByProductId(product_id);
-            return { product_id, reviews: response };
-        } catch (error) {
-            return rejectWithValue({ product_id, error: error.message });
-        }
+  'reviews/fetchProductReviewsByProductId',
+  async (productId, { rejectWithValue }) => {
+    try {
+      const reviews = await reviewService.getProductReviewsByProductId(productId);
+      return { productId, reviews };
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
+  }
 );
 
-export const createReview = createAsyncThunk(
-    'review/createReview',
-    async ({ product_id, order_detail_id, rating, review_content }, { rejectWithValue }) => {
-        try {
-            const response = await createReviewApi({ product_id, order_detail_id, rating, review_content });
-            return response.review;
-        } catch (error) {
-            return rejectWithValue(error.message);
-        }
+export const addReview = createAsyncThunk(
+  'reviews/addReview',
+  async (reviewData, { rejectWithValue }) => {
+    try {
+      const result = await reviewService.addReview(reviewData);
+      return result;
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
+  }
 );
+
 export const updateReview = createAsyncThunk(
-    'review/updateReview',
-    async ({ review_id, rating, review_content }, { rejectWithValue }) => {
-        try {
-            const response = await updateReviewApi({ review_id, rating, review_content });
-            return response.review;
-        } catch (error) {
-            return rejectWithValue(error.message);
-        }
+  'reviews/updateReview',
+  async ({ reviewId, reviewData }, { rejectWithValue }) => {
+    try {
+      const result = await reviewService.updateReview(reviewId, reviewData);
+      return { reviewId, reviewData };
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
+  }
 );
 
-export const getReviewsByOrderId = createAsyncThunk(
-    'review/getReviewsByOrderId',
-    async (order_id, { rejectWithValue }) => {
-        try {
-            const reviews = await getReviewsByOrderIdApi(order_id);
-            return reviews;
-        } catch (error) {
-            return rejectWithValue(error.message);
-        }
+export const deleteReview = createAsyncThunk(
+  'reviews/deleteReview',
+  async (reviewId, { rejectWithValue }) => {
+    try {
+      const result = await reviewService.deleteReview(reviewId);
+      return reviewId;
+    } catch (error) {
+      return rejectWithValue(error.message);
     }
+  }
 );
 
+export const fetchUserReviews = createAsyncThunk(
+  'reviews/fetchUserReviews',
+  async ({ userId, limit = 20, offset = 0 }, { rejectWithValue }) => {
+    try {
+      const reviews = await reviewService.getUserReviews(userId, limit, offset);
+      return reviews;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
+export const fetchReviewStats = createAsyncThunk(
+  'reviews/fetchReviewStats',
+  async (_, { rejectWithValue }) => {
+    try {
+      const stats = await reviewService.getReviewStats();
+      return stats;
+    } catch (error) {
+      return rejectWithValue(error.message);
+    }
+  }
+);
 
+// Initial state
 const initialState = {
-    reviewsByProduct: {}, // Store reviews by product ID: { productId: { reviews: [], isLoading: false, error: null } }
-    isLoading: false,
-    error: null,
-    successMessage: null,
-    lastAction: null,
+  productReviews: [],
+  userReviews: [],
+  currentReview: null,
+  reviewStats: null,
+  loading: false,
+  error: null,
+  productId: null,
 };
 
+// Slice
 const reviewSlice = createSlice({
-    name: 'review',
-    initialState,
-    reducers: {
-        clearReviewState: (state) => {
-            state.reviewsByProduct = {};
-            state.isLoading = false;
-            state.error = null;
-            state.successMessage = null
-        },
-        clearProductReviews: (state, action) => {
-            const productId = action.payload;
-            if (state.reviewsByProduct[productId]) {
-                delete state.reviewsByProduct[productId];
-            }
-        },
+  name: 'reviews',
+  initialState,
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
     },
-    extraReducers: (builder) => {
-        builder
-            // Fetch product reviews by product ID
-            .addCase(fetchProductReviewsByProductId.pending, (state, action) => {
-                const productId = action.meta.arg;
-                // Khởi tạo state cho sản phẩm cụ thể nếu chưa có
-                if (!state.reviewsByProduct[productId]) {
-                    state.reviewsByProduct[productId] = {
-                        reviews: [],
-                        isLoading: false,
-                        error: null,
-                    };
-                }
-                state.reviewsByProduct[productId].isLoading = true;
-                state.reviewsByProduct[productId].error = null;
-            })
-            .addCase(fetchProductReviewsByProductId.fulfilled, (state, action) => {
-                const { product_id, reviews } = action.payload;
-                // Khởi tạo state cho sản phẩm cụ thể nếu chưa có
-                if (!state.reviewsByProduct[product_id]) {
-                    state.reviewsByProduct[product_id] = {
-                        reviews: [],
-                        isLoading: false,
-                        error: null,
-                    };
-                }
-                // Chỉ cập nhật reviews cho sản phẩm cụ thể
-                state.reviewsByProduct[product_id].reviews = reviews || [];
-                state.reviewsByProduct[product_id].isLoading = false;
-                state.reviewsByProduct[product_id].error = null;
-            })
-            .addCase(fetchProductReviewsByProductId.rejected, (state, action) => {
-                const { product_id, error } = action.payload || {};
-                if (product_id) {
-                    // Khởi tạo state cho sản phẩm cụ thể nếu chưa có
-                    if (!state.reviewsByProduct[product_id]) {
-                        state.reviewsByProduct[product_id] = {
-                            reviews: [],
-                            isLoading: false,
-                            error: null,
-                        };
-                    }
-                    state.reviewsByProduct[product_id].isLoading = false;
-                    state.reviewsByProduct[product_id].error = error || 'Failed to fetch reviews';
-                }
-            })
-            .addCase(createReview.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-                state.successMessage = false;
-            })
-            .addCase(createReview.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.review = action.payload;
-                state.successMessage = true;
-                state.lastAction = 'create';
-            })
-            .addCase(createReview.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-            .addCase(updateReview.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-                state.successMessage = false;
-            })
-            .addCase(updateReview.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.review = action.payload;
-                state.successMessage = true;
-                state.lastAction = 'update';
-            })
-            .addCase(updateReview.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
-            .addCase(getReviewsByOrderId.pending, (state) => {
-                state.isLoading = true;
-                state.error = null;
-            })
-            .addCase(getReviewsByOrderId.fulfilled, (state, action) => {
-                state.isLoading = false;
-                state.review = action.payload;
-                state.lastAction = 'fetch';
-            })
-            .addCase(getReviewsByOrderId.rejected, (state, action) => {
-                state.isLoading = false;
-                state.error = action.payload;
-            })
+    clearReviews: (state) => {
+      state.productReviews = [];
+      state.userReviews = [];
+      state.currentReview = null;
+    },
+    clearCurrentReview: (state) => {
+      state.currentReview = null;
+    },
+    setProductId: (state, action) => {
+      state.productId = action.payload;
+    }
+  },
+  extraReducers: (builder) => {
+    // Fetch product reviews
+    builder
+      .addCase(fetchProductReviews.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductReviews.fulfilled, (state, action) => {
+        state.loading = false;
+        const { productId, reviews } = action.payload;
+        state.productId = productId;
+        // Merge reviews into existing list (avoid duplicates)
+        const existingIds = state.productReviews.map(r => r.id);
+        const newReviews = reviews.filter(r => !existingIds.includes(r.id));
+        state.productReviews = [...state.productReviews, ...newReviews];
+      })
+      .addCase(fetchProductReviews.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
 
-    },
+    // Fetch product reviews by product ID (alias)
+    builder
+      .addCase(fetchProductReviewsByProductId.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchProductReviewsByProductId.fulfilled, (state, action) => {
+        state.loading = false;
+        const { productId, reviews } = action.payload;
+        state.productId = productId;
+        // Merge reviews into existing list (avoid duplicates)
+        const existingIds = state.productReviews.map(r => r.id);
+        const newReviews = reviews.filter(r => !existingIds.includes(r.id));
+        state.productReviews = [...state.productReviews, ...newReviews];
+      })
+      .addCase(fetchProductReviewsByProductId.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Add review
+    builder
+      .addCase(addReview.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(addReview.fulfilled, (state, action) => {
+        state.loading = false;
+        // Reload reviews after adding
+      })
+      .addCase(addReview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Update review
+    builder
+      .addCase(updateReview.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(updateReview.fulfilled, (state, action) => {
+        state.loading = false;
+        const { reviewId, reviewData } = action.payload;
+        state.productReviews = state.productReviews.map(review =>
+          review.id === reviewId ? { ...review, ...reviewData } : review
+        );
+      })
+      .addCase(updateReview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Delete review
+    builder
+      .addCase(deleteReview.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(deleteReview.fulfilled, (state, action) => {
+        state.loading = false;
+        state.productReviews = state.productReviews.filter(
+          review => review.id !== action.payload
+        );
+      })
+      .addCase(deleteReview.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Fetch user reviews
+    builder
+      .addCase(fetchUserReviews.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchUserReviews.fulfilled, (state, action) => {
+        state.loading = false;
+        state.userReviews = action.payload;
+      })
+      .addCase(fetchUserReviews.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+
+    // Fetch review stats
+    builder
+      .addCase(fetchReviewStats.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(fetchReviewStats.fulfilled, (state, action) => {
+        state.loading = false;
+        state.reviewStats = action.payload;
+      })
+      .addCase(fetchReviewStats.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload;
+      });
+  }
 });
 
-export const { clearReviewState, clearProductReviews } = reviewSlice.actions;
+export const {
+  clearError,
+  clearReviews,
+  clearCurrentReview,
+  setProductId
+} = reviewSlice.actions;
 
-// Memoized Selectors - Đảm bảo chỉ trả về reviews của sản phẩm cụ thể
-export const selectProductReviews = createSelector(
-    [(state) => state.review.reviewsByProduct, (state, productId) => productId],
-    (reviewsByProduct, productId) => {
-        if (!productId || !reviewsByProduct[productId]) {
-            return [];
-        }
-        return reviewsByProduct[productId].reviews || [];
+// Selectors - Memoized để tránh unnecessary rerenders
+const selectAllProductReviews = (state) => state.reviews?.productReviews || [];
+const selectAllUserReviews = (state) => state.reviews?.userReviews || [];
+
+// Tạo base selector cho product reviews
+const makeSelectProductReviews = () => {
+  return createSelector(
+    [selectAllProductReviews, (state, productId) => productId],
+    (reviews, productId) => {
+      if (!productId) return reviews;
+      // Trả về reference mới chỉ khi reviews hoặc productId thay đổi
+      return reviews.filter(review => review.product_id === productId || review.productId === productId);
     }
+  );
+};
+
+// Selector factory pattern - tạo memoized selector instance
+const selectProductReviewsInstances = {};
+
+// Memoized selector cho product reviews với productId
+export const selectProductReviews = (state, productId) => {
+  // Tạo cache key từ productId
+  const cacheKey = productId || 'all';
+
+  // Nếu chưa có instance cho productId này, tạo mới
+  if (!selectProductReviewsInstances[cacheKey]) {
+    selectProductReviewsInstances[cacheKey] = createSelector(
+      [selectAllProductReviews],
+      (reviews) => {
+        if (!productId) return reviews;
+        return reviews.filter(review => review.product_id === productId || review.productId === productId);
+      }
+    );
+  }
+
+  return selectProductReviewsInstances[cacheKey](state);
+};
+
+// Memoized selector cho review stats
+export const selectReviewStats = createSelector(
+  [(state) => state.reviews?.reviewStats],
+  (stats) => stats || null
 );
 
-export const selectProductReviewsLoading = createSelector(
-    [(state) => state.review.reviewsByProduct, (state, productId) => productId],
-    (reviewsByProduct, productId) => {
-        if (!productId || !reviewsByProduct[productId]) {
-            return false;
-        }
-        return reviewsByProduct[productId].isLoading || false;
-    }
-);
+// Memoized selector cho user reviews
+const selectUserReviewsInstances = {};
 
-export const selectProductReviewsError = createSelector(
-    [(state) => state.review.reviewsByProduct, (state, productId) => productId],
-    (reviewsByProduct, productId) => {
-        if (!productId || !reviewsByProduct[productId]) {
-            return null;
-        }
-        return reviewsByProduct[productId].error || null;
-    }
-);
+export const selectUserReviews = (state, userId) => {
+  const cacheKey = userId || 'all';
+
+  if (!selectUserReviewsInstances[cacheKey]) {
+    selectUserReviewsInstances[cacheKey] = createSelector(
+      [selectAllUserReviews],
+      (reviews) => {
+        if (!userId) return reviews;
+        return reviews.filter(review => review.user_id === userId || review.userId === userId);
+      }
+    );
+  }
+
+  return selectUserReviewsInstances[cacheKey](state);
+};
 
 export default reviewSlice.reducer;

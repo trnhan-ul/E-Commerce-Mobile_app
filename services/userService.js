@@ -5,6 +5,12 @@ class UserService {
   // Get user profile
   async getUserProfile() {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        throw new Error('Database not ready');
+      }
+
       const userId = await this.getCurrentUserId();
       if (!userId) throw new Error('User not logged in');
 
@@ -41,6 +47,12 @@ class UserService {
   // Change password
   async changePassword(currentPassword, newPassword) {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        throw new Error('Database not ready');
+      }
+
       const userId = await this.getCurrentUserId();
       if (!userId) throw new Error('User not logged in');
 
@@ -239,8 +251,25 @@ class UserService {
   // Get user statistics
   async getUserStats() {
     try {
+      // Kiểm tra database đã sẵn sàng
+      const isReady = await databaseService.ensureDatabaseReady();
+      if (!isReady) {
+        console.warn('Database not ready for getUserStats');
+        return {
+          totalOrders: 0,
+          totalSpent: 0,
+          favoriteCategory: null
+        };
+      }
+
       const userId = await this.getCurrentUserId();
-      if (!userId) throw new Error('User not logged in');
+      if (!userId) {
+        return {
+          totalOrders: 0,
+          totalSpent: 0,
+          favoriteCategory: null
+        };
+      }
 
       const stats = {};
 
@@ -249,7 +278,7 @@ class UserService {
         'SELECT COUNT(*) as count FROM orders WHERE user_id = ?',
         [userId]
       );
-      stats.totalOrders = ordersResult.count;
+      stats.totalOrders = ordersResult?.count || 0;
 
       // Total spent
       const spentResult = await databaseService.db.getFirstAsync(`
@@ -257,19 +286,29 @@ class UserService {
         FROM orders 
         WHERE user_id = ? AND status = 'completed'
       `, [userId]);
-      stats.totalSpent = spentResult.total_spent || 0;
+      stats.totalSpent = spentResult?.total_spent || 0;
 
-      // Addresses count
-      const addressesResult = await databaseService.db.getFirstAsync(
-        'SELECT COUNT(*) as count FROM user_addresses WHERE user_id = ?',
-        [userId]
-      );
-      stats.addressesCount = addressesResult.count;
+      // Addresses count (nếu table tồn tại)
+      try {
+        const addressesResult = await databaseService.db.getFirstAsync(
+          'SELECT COUNT(*) as count FROM user_addresses WHERE user_id = ?',
+          [userId]
+        );
+        stats.addressesCount = addressesResult?.count || 0;
+      } catch (error) {
+        // Table có thể không tồn tại
+        stats.addressesCount = 0;
+      }
 
       return stats;
     } catch (error) {
       console.error('UserService - Error getting user stats:', error);
-      throw error;
+      // Return default stats thay vì throw để tránh crash
+      return {
+        totalOrders: 0,
+        totalSpent: 0,
+        addressesCount: 0
+      };
     }
   }
 
@@ -320,7 +359,7 @@ class UserService {
       const queries = [
         'DELETE FROM product_reviews WHERE user_id = ?',
         'DELETE FROM user_addresses WHERE user_id = ?',
-        'DELETE FROM cart_items WHERE user_id = ?',
+        'DELETE FROM cart WHERE user_id = ?',
         'DELETE FROM orders WHERE user_id = ?',
         'DELETE FROM users WHERE id = ?'
       ];

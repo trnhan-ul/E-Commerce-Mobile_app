@@ -9,37 +9,50 @@ class DatabaseService {
     // Khởi tạo database
     async init() {
         try {
-            this.db = await SQLite.openDatabaseAsync('shopapp.db');
+            // Đảm bảo database được mở thành công
+            if (!this.db) {
+                this.db = await SQLite.openDatabaseAsync('shopapp.db');
+            }
+
+            // Kiểm tra database đã được mở chưa
+            if (!this.db) {
+                throw new Error('Failed to open database');
+            }
+
+            // Enable foreign keys trước khi tạo tables
+            try {
+                await this.db.runAsync('PRAGMA foreign_keys = ON;');
+            } catch (error) {
+                console.warn('Warning: Could not enable foreign keys:', error);
+            }
+
+            // Tạo tables
             await this.createTables();
+
             this.isInitialized = true;
             console.log('Database initialized successfully');
+            return true;
         } catch (error) {
             console.error('Error initializing database:', error);
+            this.isInitialized = false;
             throw error;
         }
     }
 
     // Tạo các bảng
     async createTables() {
-        const tables = [
-            // Products table
-            `CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT NOT NULL,
-        price REAL NOT NULL,
-        description TEXT,
-        image_url TEXT,
-        category_id INTEGER,
-        stock_quantity INTEGER DEFAULT 0,
-        is_featured BOOLEAN DEFAULT 0,
-        is_new BOOLEAN DEFAULT 0,
-        rating REAL DEFAULT 0,
-        review_count INTEGER DEFAULT 0,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )`,
+        if (!this.db) {
+            throw new Error('Database not initialized');
+        }
 
-            // Categories table
+        // Tạo tables theo thứ tự để tránh lỗi foreign key
+        // 1. Categories trước (không có foreign key)
+        // 2. Users trước (không có foreign key)
+        // 3. Products (có foreign key đến categories)
+        // 4. Cart, Orders, Reviews (có foreign key đến users/products)
+
+        const tables = [
+            // 1. Categories table (tạo đầu tiên - không có foreign key)
             `CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -48,7 +61,7 @@ class DatabaseService {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
 
-            // Users table
+            // 2. Users table (tạo thứ 2 - không có foreign key)
             `CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
@@ -57,7 +70,24 @@ class DatabaseService {
         phone TEXT,
         avatar_url TEXT,
         role TEXT DEFAULT 'user',
-        is_active BOOLEAN DEFAULT 1,
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+            // 3. Products table (có foreign key đến categories)
+            `CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        price REAL NOT NULL,
+        description TEXT,
+        image_url TEXT,
+        category_id INTEGER,
+        stock_quantity INTEGER DEFAULT 0,
+        is_featured INTEGER DEFAULT 0,
+        is_new INTEGER DEFAULT 0,
+        rating REAL DEFAULT 0,
+        review_count INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
@@ -113,8 +143,17 @@ class DatabaseService {
       )`
         ];
 
-        for (const table of tables) {
-            await this.db.execAsync(table);
+        // Tạo từng table một cách tuần tự
+        // Dùng runAsync cho CREATE TABLE (execAsync có thể gây NullPointerException)
+        for (let i = 0; i < tables.length; i++) {
+            const table = tables[i];
+            try {
+                await this.db.runAsync(table);
+            } catch (error) {
+                console.error(`Error creating table ${i + 1}:`, error);
+                console.error('SQL:', table.substring(0, 200));
+                throw error;
+            }
         }
 
         // Tạo indexes để tối ưu performance
@@ -135,15 +174,42 @@ class DatabaseService {
         ];
 
         for (const index of indexes) {
-            await this.db.execAsync(index);
+            try {
+                await this.db.runAsync(index);
+            } catch (error) {
+                console.error('Error creating index:', index, error);
+                // Index không critical, có thể skip
+            }
         }
     }
 
     // ==================== PRODUCTS ====================
 
+    // Helper method để đảm bảo database đã sẵn sàng
+    async ensureDatabaseReady() {
+        if (this.db && this.isInitialized) {
+            return true;
+        }
+
+        // Đợi database khởi tạo (tối đa 5 giây)
+        let attempts = 0;
+        while ((!this.db || !this.isInitialized) && attempts < 50) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+
+        return this.db && this.isInitialized;
+    }
+
     // Lấy tất cả sản phẩm
     async getProducts(limit = null, offset = 0) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready, returning empty array');
+                return [];
+            }
+
             let query = 'SELECT * FROM products ORDER BY created_at DESC';
             let params = [];
 
@@ -153,7 +219,7 @@ class DatabaseService {
             }
 
             const result = await this.db.getAllAsync(query, params);
-            return result;
+            return result || [];
         } catch (error) {
             console.error('Error getting products:', error);
             return [];
@@ -163,8 +229,14 @@ class DatabaseService {
     // Lấy sản phẩm theo ID
     async getProductById(id) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for getProductById');
+                return null;
+            }
+
             const result = await this.db.getFirstAsync('SELECT * FROM products WHERE id = ?', [id]);
-            return result;
+            return result || null;
         } catch (error) {
             console.error('Error getting product by id:', error);
             return null;
@@ -232,11 +304,17 @@ class DatabaseService {
     // Lấy sản phẩm nổi bật
     async getFeaturedProducts(limit = 10) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for getFeaturedProducts');
+                return [];
+            }
+
             const result = await this.db.getAllAsync(
                 'SELECT * FROM products WHERE is_featured = 1 ORDER BY created_at DESC LIMIT ?',
                 [limit]
             );
-            return result;
+            return result || [];
         } catch (error) {
             console.error('Error getting featured products:', error);
             return [];
@@ -246,11 +324,17 @@ class DatabaseService {
     // Lấy sản phẩm mới
     async getNewProducts(limit = 10) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for getNewProducts');
+                return [];
+            }
+
             const result = await this.db.getAllAsync(
                 'SELECT * FROM products WHERE is_new = 1 ORDER BY created_at DESC LIMIT ?',
                 [limit]
             );
-            return result;
+            return result || [];
         } catch (error) {
             console.error('Error getting new products:', error);
             return [];
@@ -339,13 +423,22 @@ class DatabaseService {
     // Tạo user mới
     async createUser(user) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                throw new Error('Database not ready');
+            }
+
             const result = await this.db.runAsync(
                 'INSERT INTO users (email, password, full_name, phone, avatar_url, role) VALUES (?, ?, ?, ?, ?, ?)',
-                [user.email, user.password, user.full_name, user.phone, user.avatar_url, user.role || 'user']
+                [user.email, user.password, user.full_name || '', user.phone || '', user.avatar_url || '', user.role || 'user']
             );
-            return result.lastInsertRowId;
+
+            const userId = result.lastInsertRowId;
+            console.log(`✅ Created user: ${user.email} with ID: ${userId}`);
+            return userId;
         } catch (error) {
-            console.error('Error creating user:', error);
+            console.error('❌ Error creating user:', error);
+            console.error('User data:', { email: user.email, role: user.role });
             return null;
         }
     }
@@ -589,6 +682,11 @@ class DatabaseService {
     // Thêm đánh giá
     async addReview(userId, productId, rating, comment = '') {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                throw new Error('Database not ready');
+            }
+
             const result = await this.db.runAsync(
                 'INSERT INTO reviews (user_id, product_id, rating, comment) VALUES (?, ?, ?, ?)',
                 [userId, productId, rating, comment]
@@ -607,6 +705,12 @@ class DatabaseService {
     // Lấy đánh giá của sản phẩm
     async getProductReviews(productId, limit = 20, offset = 0) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for getProductReviews');
+                return [];
+            }
+
             const result = await this.db.getAllAsync(
                 `SELECT r.*, u.full_name, u.avatar_url 
          FROM reviews r 
@@ -616,7 +720,7 @@ class DatabaseService {
          LIMIT ? OFFSET ?`,
                 [productId, limit, offset]
             );
-            return result;
+            return result || [];
         } catch (error) {
             console.error('Error getting product reviews:', error);
             return [];
@@ -626,6 +730,12 @@ class DatabaseService {
     // Cập nhật rating trung bình của sản phẩm
     async updateProductRating(productId) {
         try {
+            const isReady = await this.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for updateProductRating');
+                return false;
+            }
+
             const result = await this.db.getFirstAsync(
                 'SELECT AVG(rating) as avg_rating, COUNT(*) as review_count FROM reviews WHERE product_id = ?',
                 [productId]
@@ -633,10 +743,13 @@ class DatabaseService {
 
             await this.db.runAsync(
                 'UPDATE products SET rating = ?, review_count = ? WHERE id = ?',
-                [result.avg_rating || 0, result.review_count || 0, productId]
+                [result?.avg_rating || 0, result?.review_count || 0, productId]
             );
+
+            return true;
         } catch (error) {
             console.error('Error updating product rating:', error);
+            return false;
         }
     }
 
@@ -757,6 +870,100 @@ class DatabaseService {
             await this.db.getFirstAsync('SELECT 1');
             return true;
         } catch (error) {
+            return false;
+        }
+    }
+
+    // Kiểm tra xem đã có dữ liệu sample chưa
+    async hasSampleData() {
+        try {
+            const categoriesCount = await this.db.getFirstAsync('SELECT COUNT(*) as count FROM categories');
+            const productsCount = await this.db.getFirstAsync('SELECT COUNT(*) as count FROM products');
+            const usersCount = await this.db.getFirstAsync('SELECT COUNT(*) as count FROM users');
+
+            // Check cả 3 loại data: categories, products, và users
+            const hasCategories = (categoriesCount?.count || 0) > 0;
+            const hasProducts = (productsCount?.count || 0) > 0;
+            const hasUsers = (usersCount?.count || 0) > 0;
+
+            console.log('Data check:', { categories: hasCategories, products: hasProducts, users: hasUsers });
+
+            return hasCategories || hasProducts || hasUsers;
+        } catch (error) {
+            console.error('Error checking sample data:', error);
+            return false;
+        }
+    }
+
+    // Import sample data từ file
+    async importSampleData(sampleData) {
+        try {
+            if (!this.isInitialized) {
+                throw new Error('Database not initialized');
+            }
+
+            console.log('📦 Importing sample data...');
+
+            // Import categories
+            if (sampleData.categories && sampleData.categories.length > 0) {
+                for (const category of sampleData.categories) {
+                    // Kiểm tra category đã tồn tại chưa
+                    const exists = await this.db.getFirstAsync(
+                        'SELECT id FROM categories WHERE name = ?',
+                        [category.name]
+                    );
+
+                    if (!exists) {
+                        await this.addCategory(category);
+                        console.log(`✅ Imported category: ${category.name}`);
+                    }
+                }
+            }
+
+            // Import products
+            if (sampleData.products && sampleData.products.length > 0) {
+                for (const product of sampleData.products) {
+                    // Kiểm tra product đã tồn tại chưa
+                    const exists = await this.db.getFirstAsync(
+                        'SELECT id FROM products WHERE name = ?',
+                        [product.name]
+                    );
+
+                    if (!exists) {
+                        await this.addProduct(product);
+                        console.log(`✅ Imported product: ${product.name}`);
+                    }
+                }
+            }
+
+            // Import users (luôn import, chỉ skip nếu đã tồn tại email)
+            if (sampleData.users && sampleData.users.length > 0) {
+                console.log(`📝 Checking users... Found ${sampleData.users.length} users in sample data`);
+                for (const user of sampleData.users) {
+                    try {
+                        const exists = await this.getUserByEmail(user.email);
+                        if (!exists) {
+                            const userId = await this.createUser(user);
+                            if (userId) {
+                                console.log(`✅ Imported user: ${user.email} (ID: ${userId})`);
+                            } else {
+                                console.error(`❌ Failed to import user: ${user.email}`);
+                            }
+                        } else {
+                            console.log(`⏭️  User already exists: ${user.email}`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error importing user ${user.email}:`, error);
+                    }
+                }
+            } else {
+                console.log('⚠️  No users in sample data');
+            }
+
+            console.log('✅ Sample data imported successfully!');
+            return true;
+        } catch (error) {
+            console.error('❌ Error importing sample data:', error);
             return false;
         }
     }

@@ -40,24 +40,46 @@ export const searchProducts = createAsyncThunk(
 
 export const fetchFeaturedProducts = createAsyncThunk(
   'products/fetchFeaturedProducts',
-  async (limit = 10, { rejectWithValue }) => {
+  async (limit = 10, { rejectWithValue, getState }) => {
     try {
+      // Kiểm tra xem đã có data chưa để tránh retry liên tục
+      const state = getState();
+      const existingProducts = state.products?.featuredProducts || [];
+
+      // Nếu đã có data và không phải là refresh, return data hiện tại
+      if (existingProducts.length > 0) {
+        return existingProducts;
+      }
+
       const products = await productService.getFeaturedProducts(limit);
-      return products;
+      return products || [];
     } catch (error) {
-      return rejectWithValue(error.message);
+      // Trả về empty array thay vì reject để tránh retry vòng lặp
+      console.warn('fetchFeaturedProducts error:', error.message);
+      return [];
     }
   }
 );
 
 export const fetchNewProducts = createAsyncThunk(
   'products/fetchNewProducts',
-  async (limit = 10, { rejectWithValue }) => {
+  async (limit = 10, { rejectWithValue, getState }) => {
     try {
+      // Kiểm tra xem đã có data chưa để tránh retry liên tục
+      const state = getState();
+      const existingProducts = state.products?.newProducts || [];
+
+      // Nếu đã có data, return data hiện tại
+      if (existingProducts.length > 0) {
+        return existingProducts;
+      }
+
       const products = await productService.getNewProducts(limit);
-      return products;
+      return products || [];
     } catch (error) {
-      return rejectWithValue(error.message);
+      // Trả về empty array thay vì reject để tránh retry vòng lặp
+      console.warn('fetchNewProducts error:', error.message);
+      return [];
     }
   }
 );

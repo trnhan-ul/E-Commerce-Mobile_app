@@ -8,17 +8,18 @@ class ReviewService {
                 throw new Error('Product ID is required');
             }
 
-            const query = `
-        SELECT r.*, u.username, u.avatar_url
-        FROM product_reviews r
-        LEFT JOIN users u ON r.user_id = u.id
-        WHERE r.product_id = ? AND r.is_approved = 1
-        ORDER BY r.created_at DESC
-      `;
-            return await databaseService.db.getAllAsync(query, [productId]);
+            // Kiểm tra database đã sẵn sàng
+            const isReady = await databaseService.ensureDatabaseReady();
+            if (!isReady) {
+                console.warn('Database not ready for getProductReviewsByProductId');
+                return [];
+            }
+
+            // Sử dụng method có sẵn trong databaseService
+            return await databaseService.getProductReviews(productId);
         } catch (error) {
             console.error('ReviewService - Error getting product reviews:', error);
-            throw error;
+            return [];
         }
     }
 
@@ -38,10 +39,21 @@ class ReviewService {
                 throw new Error('Rating must be between 1 and 5');
             }
 
-            const result = await databaseService.addProductReview(review);
+            // Kiểm tra database đã sẵn sàng
+            const isReady = await databaseService.ensureDatabaseReady();
+            if (!isReady) {
+                throw new Error('Database not ready');
+            }
+
+            const result = await databaseService.addReview(
+                review.user_id,
+                review.product_id,
+                review.rating,
+                review.comment
+            );
 
             // Update product rating and review count
-            await this.updateProductRating(review.product_id);
+            await databaseService.updateProductRating(review.product_id);
 
             return result;
         } catch (error) {

@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import databaseService from '../services/databaseService';
-import { migrations } from '../services/databaseMigrations';
+import databaseService from '../../services/databaseService';
+import { migrations } from '../../services/databaseMigrations';
 
 // Async thunks for database operations
 export const initializeDatabase = createAsyncThunk(
@@ -84,6 +84,44 @@ export const syncDataFromAPI = createAsyncThunk(
             };
         } catch (error) {
             console.error('Data sync failed:', error);
+            return rejectWithValue(error.message);
+        }
+    }
+);
+
+// Import sample data
+export const importSampleData = createAsyncThunk(
+    'database/importSampleData',
+    async (sampleData, { rejectWithValue }) => {
+        try {
+            console.log('Importing sample data...');
+
+            if (!databaseService.isInitialized) {
+                throw new Error('Database not initialized');
+            }
+
+            // Luôn import data - code sẽ tự check duplicate và chỉ import nếu chưa tồn tại
+            console.log('📦 Will import sample data (will skip duplicates)...');
+
+            // Import sample data
+            const result = await databaseService.importSampleData(sampleData);
+
+            if (!result) {
+                throw new Error('Failed to import sample data');
+            }
+
+            console.log('Sample data imported successfully');
+            return {
+                imported: true,
+                message: 'Sample data imported successfully',
+                itemsCount: {
+                    categories: sampleData.categories?.length || 0,
+                    products: sampleData.products?.length || 0,
+                    users: sampleData.users?.length || 0
+                }
+            };
+        } catch (error) {
+            console.error('Sample data import failed:', error);
             return rejectWithValue(error.message);
         }
     }
