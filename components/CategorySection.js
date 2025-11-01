@@ -16,19 +16,18 @@ const CategorySection = ({ categories }) => {
         return <Text style={styles.errorText}>No categories available.</Text>;
     }
 
-    // Component level filtering: Chỉ hiển thị active categories (status = true)
-    const activeCategories = categories.filter(category => category.status === true);
+    // SQLite không có field status, hiển thị tất cả categories
+    const activeCategories = categories;
 
     if (activeCategories.length === 0) {
         return <Text style={styles.errorText}>No active categories available.</Text>;
     }
 
     const handleCategoryPress = (category) => {
-
-
-
+        // Support cả id (SQLite) và _id (MongoDB)
+        const categoryId = category.id || category._id;
         navigation.navigate('AllProducts', {
-            categoryId: category._id,
+            categoryId: categoryId,
             categoryName: category.name
         });
     };
@@ -42,25 +41,32 @@ const CategorySection = ({ categories }) => {
                 contentContainerStyle={styles.scrollContent}
                 style={styles.scrollView}
             >
-                {activeCategories.map((category) => (
-                    <TouchableOpacity
-                        key={category._id}
-                        style={styles.categoryItem}
-                        onPress={() => handleCategoryPress(category)}
-                    >
-                        <LinearGradient
-                            colors={[COLORS.primary, COLORS.secondary]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.categoryGradient}
+                {activeCategories.map((category) => {
+                    const categoryId = category.id || category._id;
+                    const imageUrl = category.image_url || category.image;
+                    return (
+                        <TouchableOpacity
+                            key={categoryId}
+                            style={styles.categoryItem}
+                            onPress={() => handleCategoryPress(category)}
                         >
-                            <View style={styles.categoryImageContainer}>
-                                <Image source={{ uri: category.image }} style={styles.categoryImage} />
-                            </View>
-                            <Text style={styles.categoryName}>{truncateText(category.name, 10)}</Text>
-                        </LinearGradient>
-                    </TouchableOpacity>
-                ))}
+                            <LinearGradient
+                                colors={[COLORS.primary, COLORS.secondary]}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 1 }}
+                                style={styles.categoryGradient}
+                            >
+                                <View style={styles.categoryImageContainer}>
+                                    <Image 
+                                        source={imageUrl ? { uri: imageUrl } : require('../assets/favicon.png')} 
+                                        style={styles.categoryImage} 
+                                    />
+                                </View>
+                                <Text style={styles.categoryName}>{truncateText(category.name, 10)}</Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
+                    );
+                })}
             </ScrollView>
         </View>
     );

@@ -11,15 +11,16 @@ const FeaturedNewProducts = ({ products, title }) => {
     const navigation = useNavigation();
     const dispatch = useDispatch();
 
-    // Filter chỉ lấy sản phẩm có status = true (active products) và giới hạn 6 sản phẩm
-    const activeProducts = products ? products.filter(product => product.status === true).slice(0, 6) : [];
+    // SQLite không có field status, hiển thị tất cả products (giới hạn 6 sản phẩm)
+    const activeProducts = products ? products.slice(0, 6) : [];
 
     useEffect(() => {
         // Fetch reviews for all active products
         if (activeProducts && activeProducts.length > 0) {
             activeProducts.forEach(product => {
-                if (product._id) {
-                    dispatch(fetchProductReviewsByProductId(product._id));
+                const productId = product.id || product._id;
+                if (productId) {
+                    dispatch(fetchProductReviewsByProductId(productId));
                 }
             });
         }
@@ -52,11 +53,14 @@ const FeaturedNewProducts = ({ products, title }) => {
                 snapToInterval={200}
                 snapToAlignment="center"
             >
-                {activeProducts.map((product) => (
-                    <View key={product._id} style={styles.productWrapper}>
-                        <ProductCard product={product} />
-                    </View>
-                ))}
+                {activeProducts.map((product) => {
+                    const productId = product.id || product._id;
+                    return (
+                        <View key={productId} style={styles.productWrapper}>
+                            <ProductCard product={product} />
+                        </View>
+                    );
+                })}
             </ScrollView>
         </View>
     );

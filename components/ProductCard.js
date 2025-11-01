@@ -9,7 +9,6 @@ import { addToCart } from '../store/slices/cartSlice';
 import { selectProductReviews } from '../store/slices/reviewSlice';
 import { formatCurrency } from '../utils/formatCurrency';
 import Toast from 'react-native-toast-message';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
 
 const truncateText = (text, maxLength) => {
     if (text.length <= maxLength) return text;
@@ -56,7 +55,10 @@ const ProductCard = ({ product }) => {
     }
 
     // Get reviews for THIS specific product only
-    const productReviews = useSelector(state => selectProductReviews(state, product._id));
+    // Support both _id (from MongoDB style) and id (from SQLite)
+    const productId = product._id || product.id;
+    // Sử dụng memoized selector để tránh unnecessary rerenders
+    const productReviews = useSelector((state) => selectProductReviews(state, productId));
 
     // Calculate average rating for this specific product
     const averageRating = productReviews && productReviews.length > 0
@@ -118,7 +120,7 @@ const ProductCard = ({ product }) => {
             >
                 <View style={styles.imageContainer}>
                     <Image
-                        source={product?.image ? { uri: resolveImageUrl(product.image) } : require('../assets/default-avatar.png')}
+                        source={product?.image ? { uri: product.image } : require('../assets/favicon.png')}
                         style={styles.image}
                         resizeMode="contain"
                         onError={(e) => { /* silent image error */ }}

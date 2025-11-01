@@ -6,8 +6,9 @@ import Toast from 'react-native-toast-message';
 import { ActionSheetProvider } from '@expo/react-native-action-sheet';
 import { View } from 'react-native';
 import ChatBotModal from './components/ChatBotModal';
-import { initializeDatabase } from './store/slices/databaseSlice';
+import { initializeDatabase, importSampleData } from './store/slices/databaseSlice';
 import { useDispatch } from 'react-redux';
+import supercarShopSampleData from './sampleData/supercarShopData';
 
 // App content component with database initialization
 function AppContent() {
@@ -15,8 +16,20 @@ function AppContent() {
 
   useEffect(() => {
     // Initialize database when app starts
-    console.log('🚀 Initializing database...');
-    dispatch(initializeDatabase());
+    const initApp = async () => {
+      console.log('🚀 Initializing database...');
+
+      // Khởi tạo database
+      const initResult = await dispatch(initializeDatabase()).unwrap();
+
+      if (initResult && initResult.isInitialized) {
+        // Import sample data sau khi database đã khởi tạo
+        console.log('📦 Importing sample data...');
+        await dispatch(importSampleData(supercarShopSampleData));
+      }
+    };
+
+    initApp();
   }, [dispatch]);
 
   return <AppNavigator />;

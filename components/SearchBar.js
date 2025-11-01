@@ -10,7 +10,6 @@ import {
     Modal,
     ActivityIndicator
 } from 'react-native';
-import { resolveImageUrl } from '../utils/resolveImageUrl';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { searchCategories } from '../services/categoryService';
@@ -109,7 +108,7 @@ const SearchBar = () => {
             onPress={() => handleItemPress(item)}
         >
             <Image
-                source={item?.image ? { uri: resolveImageUrl(item.image) } : require('../assets/default-avatar.png')}
+                source={item?.image ? { uri: item.image } : require('../assets/favicon.png')}
                 style={styles.itemImage}
             />
             <View style={styles.itemInfo}>

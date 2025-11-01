@@ -2,12 +2,13 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 const OrderHistorySection = ({ orderHistory, onViewAll, onOrderPress }) => {
-  const simplifiedOrders = orderHistory
+  // Support cả MongoDB format (order.order_status.name) và SQLite format (order.status)
+  const simplifiedOrders = (orderHistory || [])
     .map((order) => ({
-      order_id: order.order_id,
-      createdAt: order.createdAt,
-      total_price: order.total_price,
-      order_status_name: order.order_status.name,
+      order_id: order.id || order._id || order.order_id || 'N/A',
+      createdAt: order.created_at || order.createdAt || new Date().toISOString(),
+      total_price: order.total_amount || order.total_price || 0,
+      order_status_name: order.status || order.order_status?.name || 'pending',
     }))
     .slice(0, 3);
 
@@ -65,24 +66,29 @@ const OrderHistorySection = ({ orderHistory, onViewAll, onOrderPress }) => {
                   },
                 ]}
               >
-                <View style={styles.orderHeader}>
-                  <Text style={styles.orderId}>
-                    #{order.order_id.slice(-8).toUpperCase()}
-                  </Text>
-                  <View style={[styles.statusBadge, { backgroundColor }]}>
-                    <Text style={[styles.statusText, { color }]}>
-                      {order.order_status_name}
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => onOrderPress && onOrderPress(order)}
+                >
+                  <View style={styles.orderHeader}>
+                    <Text style={styles.orderId}>
+                      #{String(order.order_id).slice(-8).toUpperCase()}
+                    </Text>
+                    <View style={[styles.statusBadge, { backgroundColor }]}>
+                      <Text style={[styles.statusText, { color }]}>
+                        {order.order_status_name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.orderFooter}>
+                    <Text style={styles.orderDate}>
+                      {formatDate(order.createdAt)}
+                    </Text>
+                    <Text style={styles.orderAmount}>
+                      {formatCurrency(order.total_price)}
                     </Text>
                   </View>
-                </View>
-                <View style={styles.orderFooter}>
-                  <Text style={styles.orderDate}>
-                    {formatDate(order.createdAt)}
-                  </Text>
-                  <Text style={styles.orderAmount}>
-                    {formatCurrency(order.total_price)}
-                  </Text>
-                </View>
+                </TouchableOpacity>
               </View>
             );
           })

@@ -14,9 +14,13 @@ import { useSelector } from "react-redux";
 const BottomNavigation = () => {
   const [activeTab, setActiveTab] = useState("Home");
   const navigation = useNavigation();
-  const { isAuthenticated } = useSelector((state) => state.auth);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
 
-  const tabs = [
+  // Check if user is admin (support both role and role_name)
+  const isAdmin = (user?.role_name || user?.role)?.toLowerCase() === 'admin';
+
+  // Tabs for regular users
+  const userTabs = [
     { name: "HomePage", icon: "home", label: "Trang chủ", requiresAuth: false },
     {
       name: "Cart",
@@ -32,6 +36,15 @@ const BottomNavigation = () => {
     },
     { name: "Profile", icon: "person", label: "Hồ sơ", requiresAuth: true },
   ];
+
+  // Tabs for admin users
+  const adminTabs = [
+    { name: "HomePage", icon: "home", label: "Trang chủ", requiresAuth: false },
+    { name: "Admin", icon: "settings", label: "Admin", requiresAuth: true },
+    { name: "Profile", icon: "person", label: "Hồ sơ", requiresAuth: true },
+  ];
+
+  const tabs = isAdmin ? adminTabs : userTabs;
 
   const handleTabPress = (tab) => {
     if (tab.requiresAuth && !isAuthenticated) {
@@ -71,8 +84,8 @@ const BottomNavigation = () => {
                   activeTab === tab.name
                     ? "#007AFF"
                     : !isAuthenticated && tab.requiresAuth
-                    ? "#D1D5DB"
-                    : "#9CA3AF"
+                      ? "#D1D5DB"
+                      : "#9CA3AF"
                 }
               />
             </View>
@@ -84,8 +97,8 @@ const BottomNavigation = () => {
                     activeTab === tab.name
                       ? "#007AFF"
                       : !isAuthenticated && tab.requiresAuth
-                      ? "#D1D5DB"
-                      : "#9CA3AF",
+                        ? "#D1D5DB"
+                        : "#9CA3AF",
                 },
               ]}
             >

@@ -6,31 +6,37 @@ import ProductCard from './ProductCard';
 import { COLORS } from '../constants/colors';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { fetchProductReviewsByProductId } from '../store/slices/reviewSlice';
-import { fetchTopSoldProductsAsync } from '../store/slices/productSlice';
+import { fetchFeaturedProducts } from '../store/slices/productSlice';
 import { MinimalLoading } from './Loading';
 
 const FeaturedTopProducts = ({ title }) => {
     const navigation = useNavigation();
     const dispatch = useDispatch();
-    const { topSoldProducts, isLoadingTopSold } = useSelector((state) => state.product);
+    const { loading: isLoadingTopSold = false } = useSelector((state) => state.products || {});
+
+    // Use featuredProducts from state instead of topSoldProducts
+    const featuredProducts = useSelector((state) => state.products?.featuredProducts || []);
 
     useEffect(() => {
-        // Fetch top sold products only once when component mounts
-        if (!topSoldProducts || topSoldProducts.length === 0) {
-            dispatch(fetchTopSoldProductsAsync({ page: 1, limit: 6 }));
+        // Fetch featured products (top sold) only once when component mounts
+        // Chỉ fetch nếu chưa có data và không đang loading
+        if (!featuredProducts || featuredProducts.length === 0) {
+            if (!isLoadingTopSold) {
+                dispatch(fetchFeaturedProducts(6));
+            }
         }
-    }, [dispatch]); // Remove topSoldProducts from dependencies to prevent infinite loop
+    }, [dispatch]); // Loại bỏ featuredProducts khỏi dependencies để tránh vòng lặp
 
     useEffect(() => {
-        // Fetch reviews for all top sold products
-        if (topSoldProducts && topSoldProducts.length > 0) {
-            topSoldProducts.forEach(product => {
-                if (product._id) {
-                    dispatch(fetchProductReviewsByProductId(product._id));
+        // Fetch reviews for all featured products
+        if (featuredProducts && featuredProducts.length > 0) {
+            featuredProducts.forEach(product => {
+                if (product._id || product.id) {
+                    dispatch(fetchProductReviewsByProductId(product._id || product.id));
                 }
             });
         }
-    }, [dispatch]);
+    }, [dispatch, featuredProducts]);
 
     if (isLoadingTopSold) {
         return (
@@ -48,7 +54,7 @@ const FeaturedTopProducts = ({ title }) => {
         );
     }
 
-    if (!topSoldProducts || topSoldProducts.length === 0) {
+    if (!featuredProducts || featuredProducts.length === 0) {
         return (
             <View style={styles.container}>
                 <View style={styles.header}>
@@ -78,8 +84,8 @@ const FeaturedTopProducts = ({ title }) => {
                 snapToInterval={200}
                 snapToAlignment="center"
             >
-                {topSoldProducts.slice(0, 3).map((product) => (
-                    <View key={product._id} style={styles.productWrapper}>
+                {featuredProducts.slice(0, 6).map((product) => (
+                    <View key={product._id || product.id} style={styles.productWrapper}>
                         <ProductCard product={product} />
                     </View>
                 ))}

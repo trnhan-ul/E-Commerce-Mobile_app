@@ -12,7 +12,7 @@ import orderService from "../services/orderService";
 
 export default function useOrders() {
   const dispatch = useDispatch();
-  const orders = useSelector((state) => state.order.orders);
+  const orders = useSelector((state) => state.orders?.orders || []);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
