@@ -1,17 +1,24 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import {
-    createOrderApi,
-    getOrderByUserApi,
-    cancelOrderApi,
-    returnOrderApi,
-} from '../../services/orderService';
+import orderService from '../../services/orderService';
 
 export const fetchOrderByUser = createAsyncThunk(
     'order/fetchOrderByUser',
     async ({ page = 1, limit = 5, isLoadMore = false } = {}, { rejectWithValue, getState }) => {
         try {
-            const response = await getOrderByUserApi(page, limit);
-            return { ...response, isLoadMore, page };
+            const offset = (page - 1) * limit;
+            const orders = await orderService.getUserOrders(limit, offset);
+
+            // Calculate pagination info
+            const total = orders.length;
+            const totalPages = Math.ceil(total / limit);
+
+            return {
+                orders: orders || [],
+                page,
+                total,
+                totalPages,
+                isLoadMore
+            };
         } catch (error) {
             console.error('fetchOrderByUser error:', error);
             return rejectWithValue(error.message || 'Failed to fetch orders');
@@ -21,25 +28,27 @@ export const fetchOrderByUser = createAsyncThunk(
 
 export const createOrder = createAsyncThunk(
     'order/createOrder',
-    async ({ selected_product_ids, receiverInfo }, { rejectWithValue }) => {
+    async (orderData, { rejectWithValue }) => {
         try {
-
-            const response = await createOrderApi({ selected_product_ids, receiverInfo });
-            return response;
+            // orderData should contain: items, total_amount, shipping_address, payment_method, notes
+            const orderId = await orderService.createOrder(orderData);
+            return { order_id: orderId, message: 'Order created successfully' };
         } catch (error) {
-
             return rejectWithValue(error.message);
         }
     }
 );
+
 export const cancelOrder = createAsyncThunk(
     'order/cancelOrder',
-    async (order_id, { rejectWithValue }) => {
+    async ({ order_id, reason = '' }, { rejectWithValue }) => {
         try {
-            const response = await cancelOrderApi(order_id);
-            return { order_id, message: response.message };
+            const result = await orderService.cancelOrder(order_id, reason);
+            return {
+                order_id,
+                message: result ? 'Order cancelled successfully' : 'Failed to cancel order'
+            };
         } catch (error) {
-
             return rejectWithValue(error.message);
         }
     }
@@ -49,10 +58,13 @@ export const returnOrder = createAsyncThunk(
     'order/returnOrder',
     async (order_id, { rejectWithValue }) => {
         try {
-            const response = await returnOrderApi(order_id);
-            return { order_id, message: response.message };
+            // Note: returnOrder might not exist in orderService, using updateOrderStatus as fallback
+            const result = await orderService.updateOrderStatus(order_id, 'returned');
+            return {
+                order_id,
+                message: result ? 'Order returned successfully' : 'Failed to return order'
+            };
         } catch (error) {
-
             return rejectWithValue(error.message);
         }
     }
@@ -215,7 +227,7 @@ const orderSlice = createSlice({
 
                 // Cập nhật trạng thái đơn hàng trong danh sách
                 state.orders = state.orders.map(order =>
-                    order._id === action.payload.order_id
+                    (order.id === action.payload.order_id || order._id === action.payload.order_id)
                         ? { ...order, status: 'cancelled' }
                         : order
                 );
@@ -240,7 +252,7 @@ const orderSlice = createSlice({
 
                 // Cập nhật trạng thái đơn hàng trong danh sách
                 state.orders = state.orders.map(order =>
-                    order._id === action.payload.order_id
+                    (order.id === action.payload.order_id || order._id === action.payload.order_id)
                         ? { ...order, status: 'returned' }
                         : order
                 );

@@ -1,12 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import {
-    loginApi,
-    sendOtpApi,
-    confirmOtpApi,
-    forgotPasswordApi,
-    changePasswordApi,
-    resetPasswordApi
-} from '../../services/authService';
+import authService from '../../services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Async thunk for login
@@ -14,39 +7,74 @@ export const loginUser = createAsyncThunk(
     'auth/loginUser',
     async ({ email, password }, { rejectWithValue }) => {
         try {
-            const response = await loginApi({ email, password });
+            // authService.login() expects (email, password) - email is used as username parameter
+            const response = await authService.login(email, password);
 
-            // Save token to AsyncStorage
-            await AsyncStorage.setItem('token', response.token);
-            await AsyncStorage.setItem('user', JSON.stringify(response.user));
+            // authService already saves to AsyncStorage, but we also need to save to 'user' key for compatibility
+            if (response.token && response.user) {
+                await AsyncStorage.setItem('user', JSON.stringify(response.user));
+            }
 
             return response;
         } catch (error) {
-            return rejectWithValue(error.message);
+            console.error('Login error:', error);
+            return rejectWithValue(error.message || 'Login failed');
         }
     }
 );
 
-// Async thunk for sending OTP
+// Async thunk for sending OTP (for registration)
 export const sendOtp = createAsyncThunk(
     'auth/sendOtp',
     async ({ user_name, email, password }, { rejectWithValue }) => {
         try {
-            const response = await sendOtpApi({ user_name, email, password });
-            return response.message;
+            // For registration OTP, we use forgotPassword to generate OTP
+            // Then store registration data temporarily
+            const response = await authService.forgotPassword(email);
+
+            // Store registration data temporarily for after OTP verification
+            await AsyncStorage.setItem('pendingRegistration', JSON.stringify({
+                user_name,
+                email,
+                password
+            }));
+
+            return response.message || 'OTP sent successfully';
         } catch (error) {
             return rejectWithValue(error.message);
         }
     }
 );
 
-// Async thunk for confirming OTP
+// Async thunk for confirming OTP (for registration)
 export const confirmOtp = createAsyncThunk(
     'auth/confirmOtp',
     async (otp, { rejectWithValue }) => {
         try {
-            const response = await confirmOtpApi(otp);
-            return response.message;
+            // Get pending registration data first to get email
+            const pendingData = await AsyncStorage.getItem('pendingRegistration');
+            if (!pendingData) {
+                throw new Error('Registration data not found');
+            }
+
+            const registrationData = JSON.parse(pendingData);
+            const email = registrationData.email;
+
+            // Verify OTP first
+            await authService.verifyOTP(email, otp);
+
+            // Register the user
+            const result = await authService.register(registrationData);
+
+            // Clear pending registration data
+            await AsyncStorage.removeItem('pendingRegistration');
+
+            // Save user data for compatibility
+            if (result.user && result.token) {
+                await AsyncStorage.setItem('user', JSON.stringify(result.user));
+            }
+
+            return { message: 'Registration successful', ...result };
         } catch (error) {
             return rejectWithValue(error.message);
         }
@@ -57,8 +85,13 @@ export const confirmOtp = createAsyncThunk(
 export const logoutUser = createAsyncThunk(
     'auth/logoutUser',
     async (_, { dispatch }) => {
-        await AsyncStorage.removeItem('token');
-        await AsyncStorage.removeItem('user');
+        // Also call authService.logout() to ensure clean logout
+        try {
+            await authService.logout();
+        } catch (error) {
+            console.warn('Logout error:', error);
+        }
+        await AsyncStorage.multiRemove(['token', 'user', 'userData']);
         return null;
     }
 );
@@ -69,12 +102,12 @@ export const checkAuthStatus = createAsyncThunk(
     async (_, { rejectWithValue }) => {
         try {
             const token = await AsyncStorage.getItem('token');
-            const user = await AsyncStorage.getItem('user');
+            const userData = await AsyncStorage.getItem('userData') || await AsyncStorage.getItem('user');
 
-            if (token && user) {
+            if (token && userData) {
                 return {
                     token,
-                    user: JSON.parse(user),
+                    user: JSON.parse(userData),
                 };
             }
             return null;
@@ -89,8 +122,8 @@ export const forgotPassword = createAsyncThunk(
     'auth/forgotPassword',
     async ({ email }, { rejectWithValue }) => {
         try {
-            const response = await forgotPasswordApi({ email });
-            return response.message;
+            const response = await authService.forgotPassword(email);
+            return response.message || 'OTP sent successfully';
         } catch (error) {
             return rejectWithValue(error.message);
         }
@@ -102,8 +135,8 @@ export const changePassword = createAsyncThunk(
     'auth/changePassword',
     async ({ old_password, new_password }, { rejectWithValue }) => {
         try {
-            const response = await changePasswordApi({ old_password, new_password });
-            return response.message;
+            const result = await authService.changePassword(old_password, new_password);
+            return result ? 'Password changed successfully' : 'Failed to change password';
         } catch (error) {
             return rejectWithValue(error.message);
         }
@@ -115,8 +148,8 @@ export const resetPassword = createAsyncThunk(
     'auth/resetPassword',
     async ({ email, otp, newPassword }, { rejectWithValue }) => {
         try {
-            const response = await resetPasswordApi({ email, otp, newPassword });
-            return response.message;
+            const result = await authService.resetPassword(email, newPassword, otp);
+            return result.success ? 'Password reset successfully' : 'Failed to reset password';
         } catch (error) {
             return rejectWithValue(error.message);
         }
@@ -216,7 +249,13 @@ const authSlice = createSlice({
                 state.isLoading = false;
                 state.confirmOtpStatus = 'success';
                 state.otpStatus = null;
-                state.confirmOtpMessage = action.payload;
+                state.confirmOtpMessage = action.payload?.message || 'Registration successful';
+                // Auto login after successful registration
+                if (action.payload?.user && action.payload?.token) {
+                    state.user = action.payload.user;
+                    state.token = action.payload.token;
+                    state.isAuthenticated = true;
+                }
             })
             .addCase(confirmOtp.rejected, (state, action) => {
                 state.isLoading = false;
