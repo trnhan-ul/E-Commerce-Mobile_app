@@ -311,7 +311,7 @@ const AllProductsScreen = ({ navigation, route }) => {
 
     // Loading footer component
     const LoadingFooter = () => {
-        if (!isLoading || !pagination.hasMore) return null;
+        if (!isLoading) return null;
 
         return <FooterLoading text="Đang tải thêm sản phẩm..." />;
     };

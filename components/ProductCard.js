@@ -66,10 +66,10 @@ const ProductCard = ({ product }) => {
         : 0;
 
     // Check if product is out of stock
-    const isOutOfStock = product.quantity <= 0;
+    const isOutOfStock = product.quantity <= 0 || product.stock_quantity <= 0;
 
     const handlePress = () => {
-        navigation.navigate('ProductDetail', { productId: product._id });
+        navigation.navigate('ProductDetail', { productId: productId });
     };
 
     const handleAddToCart = async () => {
@@ -91,7 +91,7 @@ const ProductCard = ({ product }) => {
         setShowLoadingModal(true);
         try {
             await dispatch(addToCart({
-                product_id: product._id,
+                product_id: productId,
                 quantity: 1
             })).unwrap();
 
@@ -123,7 +123,7 @@ const ProductCard = ({ product }) => {
                         source={(product?.image_url || product?.image) ? { uri: product.image_url || product.image } : require('../assets/favicon.png')}
                         style={styles.image}
                         resizeMode="contain"
-                        onError={(e) => { 
+                        onError={(e) => {
                             console.log('Image load error:', product?.image_url || product?.image);
                         }}
                     />
@@ -163,7 +163,7 @@ const ProductCard = ({ product }) => {
                             styles.stockText,
                             isOutOfStock && styles.stockTextOutOfStock
                         ]}>
-                            {isOutOfStock ? 'Hết hàng' : `Còn ${product.quantity} sản phẩm`}
+                            {isOutOfStock ? 'Hết hàng' : `Còn ${product.quantity || product.stock_quantity || 0} sản phẩm`}
                         </Text>
                     </View>
                 </View>
