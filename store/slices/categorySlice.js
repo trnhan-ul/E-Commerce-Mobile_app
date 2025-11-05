@@ -6,7 +6,8 @@ export const fetchCategories = createAsyncThunk(
   'categories/fetchCategories',
   async (_, { rejectWithValue }) => {
     try {
-      const categories = await categoryService.getCategories();
+      // Only return active categories for UI
+      const categories = await categoryService.getActiveCategories(100);
       return categories;
     } catch (error) {
       return rejectWithValue(error.message);

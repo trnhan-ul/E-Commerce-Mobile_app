@@ -133,13 +133,31 @@ class CategoryService {
             if (!category) throw new Error('Category not found');
 
             const newStatus = !category.is_active;
+            const newStatusInt = newStatus ? 1 : 0;
             const query = `
         UPDATE categories 
         SET is_active = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
       `;
-            const result = await databaseService.db.runAsync(query, [newStatus, id]);
-            return result.changes > 0;
+            try {
+                const result = await databaseService.db.runAsync(query, [newStatusInt, id]);
+                return result.changes > 0;
+            } catch (err) {
+                const msg = String(err?.message || '');
+                if (msg.includes('no such column: updated_at')) {
+                    // Thêm cột và thử lại
+                    await databaseService.db.runAsync('ALTER TABLE categories ADD COLUMN updated_at DATETIME');
+                    await databaseService.db.runAsync("UPDATE categories SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
+                    const result = await databaseService.db.runAsync(query, [newStatusInt, id]);
+                    return result.changes > 0;
+                }
+                if (msg.includes('no such column: is_active')) {
+                    await databaseService.db.runAsync('ALTER TABLE categories ADD COLUMN is_active INTEGER DEFAULT 1');
+                    const result = await databaseService.db.runAsync(query, [newStatusInt, id]);
+                    return result.changes > 0;
+                }
+                throw err;
+            }
         } catch (error) {
             console.error('CategoryService - Error toggling category status:', error);
             throw error;

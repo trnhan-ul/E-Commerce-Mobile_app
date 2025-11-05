@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
+import { useNavigation } from '@react-navigation/native';
 import { logoutUser } from '../store/slices/authSlice';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
@@ -21,6 +22,7 @@ import BottomNavigation from '../components/BottomNavigation';
 export default function AdminScreen() {
     const { user } = useSelector((state) => state.auth);
     const dispatch = useDispatch();
+    const navigation = useNavigation();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
 
@@ -141,11 +143,64 @@ export default function AdminScreen() {
                             </View>
                         )}
 
-                        <View style={styles.infoSection}>
-                            <Icon name="info" size={20} color={COLORS.primary} />
-                            <Text style={styles.infoText}>
-                                Để quản lý chi tiết, vui lòng truy cập web admin panel
-                            </Text>
+                        <View style={styles.section}>
+                            <Text style={styles.sectionTitle}>Quản lý</Text>
+
+                            <TouchableOpacity
+                                style={styles.managementCard}
+                                onPress={() => navigation.navigate('AdminProducts')}
+                            >
+                                <View style={[styles.managementIcon, { backgroundColor: '#10B98120' }]}>
+                                    <Icon name="inventory" size={24} color="#10B981" />
+                                </View>
+                                <View style={styles.managementContent}>
+                                    <Text style={styles.managementTitle}>Quản lý Sản phẩm</Text>
+                                    <Text style={styles.managementSubtitle}>Thêm, sửa, xóa sản phẩm</Text>
+                                </View>
+                                <Icon name="chevron-right" size={24} color={COLORS.text.secondary} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.managementCard}
+                                onPress={() => navigation.navigate('AdminOrders')}
+                            >
+                                <View style={[styles.managementIcon, { backgroundColor: '#F59E0B20' }]}>
+                                    <Icon name="shopping-cart" size={24} color="#F59E0B" />
+                                </View>
+                                <View style={styles.managementContent}>
+                                    <Text style={styles.managementTitle}>Quản lý Đơn hàng</Text>
+                                    <Text style={styles.managementSubtitle}>Xem và cập nhật trạng thái đơn hàng</Text>
+                                </View>
+                                <Icon name="chevron-right" size={24} color={COLORS.text.secondary} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.managementCard}
+                                onPress={() => navigation.navigate('AdminCategories')}
+                            >
+                                <View style={[styles.managementIcon, { backgroundColor: '#3B82F620' }]}>
+                                    <Icon name="category" size={24} color="#3B82F6" />
+                                </View>
+                                <View style={styles.managementContent}>
+                                    <Text style={styles.managementTitle}>Quản lý Danh mục</Text>
+                                    <Text style={styles.managementSubtitle}>Thêm, sửa, xóa danh mục</Text>
+                                </View>
+                                <Icon name="chevron-right" size={24} color={COLORS.text.secondary} />
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.managementCard}
+                                onPress={() => navigation.navigate('AdminUsers')}
+                            >
+                                <View style={[styles.managementIcon, { backgroundColor: '#8B5CF620' }]}>
+                                    <Icon name="people" size={24} color="#8B5CF6" />
+                                </View>
+                                <View style={styles.managementContent}>
+                                    <Text style={styles.managementTitle}>Quản lý Người dùng</Text>
+                                    <Text style={styles.managementSubtitle}>Xem danh sách người dùng</Text>
+                                </View>
+                                <Icon name="chevron-right" size={24} color={COLORS.text.secondary} />
+                            </TouchableOpacity>
                         </View>
 
                         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -310,5 +365,39 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '600',
         marginLeft: 8,
+    },
+    managementCard: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#FFFFFF',
+        borderRadius: 12,
+        padding: 16,
+        marginBottom: 12,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    managementIcon: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
+    },
+    managementContent: {
+        flex: 1,
+    },
+    managementTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.text.primary,
+        marginBottom: 4,
+    },
+    managementSubtitle: {
+        fontSize: 12,
+        color: COLORS.text.secondary,
     },
 });

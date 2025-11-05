@@ -23,6 +23,11 @@ import PaymentScreen from '../screens/PaymentScreen';
 import OrderDetailsScreen from '../screens/OrderDetailsScreen';
 import AllProductsScreen from '../screens/AllProductsScreen';
 import BuyNowScreen from '../screens/BuyNowScreen';
+// Admin screens
+import AdminProductsScreen from '../screens/AdminProductsScreen';
+import AdminOrdersScreen from '../screens/AdminOrdersScreen';
+import AdminCategoriesScreen from '../screens/AdminCategoriesScreen';
+import AdminUsersScreen from '../screens/AdminUsersScreen';
 
 const Stack = createStackNavigator();
 
@@ -90,6 +95,11 @@ export default function AppNavigator() {
                 {/* Admin có thể truy cập AdminScreen và Profile */}
                 <Stack.Screen name="Admin" component={AdminScreen} />
                 <Stack.Screen name="Profile" component={ProfileScreen} />
+                {/* Admin management screens */}
+                <Stack.Screen name="AdminProducts" component={AdminProductsScreen} />
+                <Stack.Screen name="AdminOrders" component={AdminOrdersScreen} />
+                <Stack.Screen name="AdminCategories" component={AdminCategoriesScreen} />
+                <Stack.Screen name="AdminUsers" component={AdminUsersScreen} />
               </>
             ) : (
               <>

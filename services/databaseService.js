@@ -84,7 +84,9 @@ class DatabaseService {
         name TEXT NOT NULL,
         description TEXT,
         image_url TEXT,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
 
             // 2. Users table (tạo thứ 2 - không có foreign key)
@@ -92,6 +94,7 @@ class DatabaseService {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         email TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
+        username TEXT,
         full_name TEXT,
         phone TEXT,
         avatar_url TEXT,
@@ -182,8 +185,30 @@ class DatabaseService {
             }
         }
 
+        // Đảm bảo các cột cần thiết đã tồn tại (cho cơ sở dữ liệu đã tạo trước đó)
+        await this.ensureColumnExists('categories', 'is_active', 'INTEGER DEFAULT 1');
+        await this.ensureColumnExists('categories', 'updated_at', 'DATETIME');
+        await this.ensureColumnExists('users', 'username', 'TEXT');
+
         // Tạo indexes để tối ưu performance
         await this.createIndexes();
+    }
+
+    // Đảm bảo thêm cột nếu chưa có (dùng PRAGMA table_info)
+    async ensureColumnExists(tableName, columnName, columnDefinition) {
+        try {
+            const info = await this.db.getAllAsync(`PRAGMA table_info(${tableName})`);
+            const hasColumn = Array.isArray(info) && info.some(c => c.name === columnName);
+            if (!hasColumn) {
+                await this.db.runAsync(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDefinition}`);
+                // Backfill reasonable defaults when needed
+                if (tableName === 'categories' && columnName === 'updated_at') {
+                    await this.db.runAsync("UPDATE categories SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
+                }
+            }
+        } catch (error) {
+            console.warn(`Warning: ensureColumnExists failed for ${tableName}.${columnName}:`, error);
+        }
     }
 
     // Tạo indexes
@@ -236,7 +261,11 @@ class DatabaseService {
                 return [];
             }
 
-            let query = 'SELECT * FROM products ORDER BY created_at DESC';
+            let query = `SELECT p.*
+                         FROM products p
+                         LEFT JOIN categories c ON p.category_id = c.id
+                         WHERE c.is_active = 1 OR c.id IS NULL
+                         ORDER BY p.created_at DESC`;
             let params = [];
 
             if (limit) {
@@ -317,7 +346,12 @@ class DatabaseService {
     async searchProducts(query, limit = 20) {
         try {
             const result = await this.db.getAllAsync(
-                'SELECT * FROM products WHERE name LIKE ? OR description LIKE ? ORDER BY created_at DESC LIMIT ?',
+                `SELECT p.*
+                 FROM products p
+                 LEFT JOIN categories c ON p.category_id = c.id
+                 WHERE (p.name LIKE ? OR p.description LIKE ?) AND (c.is_active = 1 OR c.id IS NULL)
+                 ORDER BY p.created_at DESC
+                 LIMIT ?`,
                 [`%${query}%`, `%${query}%`, limit]
             );
             return result;
@@ -337,7 +371,12 @@ class DatabaseService {
             }
 
             const result = await this.db.getAllAsync(
-                'SELECT * FROM products WHERE is_featured = 1 ORDER BY created_at DESC LIMIT ?',
+                `SELECT p.*
+                 FROM products p
+                 LEFT JOIN categories c ON p.category_id = c.id
+                 WHERE p.is_featured = 1 AND (c.is_active = 1 OR c.id IS NULL)
+                 ORDER BY p.created_at DESC
+                 LIMIT ?`,
                 [limit]
             );
             return result || [];
@@ -357,7 +396,12 @@ class DatabaseService {
             }
 
             const result = await this.db.getAllAsync(
-                'SELECT * FROM products WHERE is_new = 1 ORDER BY created_at DESC LIMIT ?',
+                `SELECT p.*
+                 FROM products p
+                 LEFT JOIN categories c ON p.category_id = c.id
+                 WHERE p.is_new = 1 AND (c.is_active = 1 OR c.id IS NULL)
+                 ORDER BY p.created_at DESC
+                 LIMIT ?`,
                 [limit]
             );
             return result || [];
@@ -371,7 +415,12 @@ class DatabaseService {
     async getProductsByCategory(categoryId, limit = 20, offset = 0) {
         try {
             const result = await this.db.getAllAsync(
-                'SELECT * FROM products WHERE category_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                `SELECT p.*
+                 FROM products p
+                 INNER JOIN categories c ON p.category_id = c.id
+                 WHERE p.category_id = ? AND c.is_active = 1
+                 ORDER BY p.created_at DESC
+                 LIMIT ? OFFSET ?`,
                 [categoryId, limit, offset]
             );
             return result;
@@ -409,8 +458,8 @@ class DatabaseService {
     async addCategory(category) {
         try {
             const result = await this.db.runAsync(
-                'INSERT INTO categories (name, description, image_url) VALUES (?, ?, ?)',
-                [category.name, category.description, category.image_url]
+                'INSERT INTO categories (name, description, image_url, is_active) VALUES (?, ?, ?, ?)',
+                [category.name, category.description, category.image_url, category.is_active ? 1 : 0]
             );
             return result.lastInsertRowId;
         } catch (error) {
@@ -423,11 +472,40 @@ class DatabaseService {
     async updateCategory(id, category) {
         try {
             await this.db.runAsync(
-                'UPDATE categories SET name = ?, description = ?, image_url = ? WHERE id = ?',
-                [category.name, category.description, category.image_url, id]
+                'UPDATE categories SET name = ?, description = ?, image_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                [category.name, category.description, category.image_url, category.is_active ? 1 : 0, id]
             );
             return true;
         } catch (error) {
+            // Thêm fallback tự thêm cột thiếu và thử lại
+            const msg = String(error?.message || '');
+            if (msg.includes('no such column: updated_at')) {
+                try {
+                    await this.db.runAsync('ALTER TABLE categories ADD COLUMN updated_at DATETIME');
+                    await this.db.runAsync("UPDATE categories SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
+                    await this.db.runAsync(
+                        'UPDATE categories SET name = ?, description = ?, image_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [category.name, category.description, category.image_url, category.is_active ? 1 : 0, id]
+                    );
+                    return true;
+                } catch (e2) {
+                    console.error('Error updating category after adding updated_at:', e2);
+                    return false;
+                }
+            }
+            if (msg.includes('no such column: is_active')) {
+                try {
+                    await this.db.runAsync('ALTER TABLE categories ADD COLUMN is_active INTEGER DEFAULT 1');
+                    await this.db.runAsync(
+                        'UPDATE categories SET name = ?, description = ?, image_url = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [category.name, category.description, category.image_url, category.is_active ? 1 : 0, id]
+                    );
+                    return true;
+                } catch (e3) {
+                    console.error('Error updating category after adding is_active:', e3);
+                    return false;
+                }
+            }
             console.error('Error updating category:', error);
             return false;
         }

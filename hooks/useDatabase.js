@@ -317,8 +317,11 @@ export const useCategories = () => {
             setLoading(true);
             setError(null);
             const result = await databaseService.getCategories();
-            setCategories(result);
-            return result;
+            const activeOnly = Array.isArray(result)
+                ? result.filter(c => c?.is_active === 1 || c?.is_active === true)
+                : [];
+            setCategories(activeOnly);
+            return activeOnly;
         } catch (err) {
             setError(err.message);
             return [];
