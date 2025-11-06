@@ -141,7 +141,14 @@ const ProductCard = ({ product }) => {
                         <Text style={styles.ratingText}>({averageRating.toFixed(1)})</Text>
                     </View>
                     <View style={styles.priceContainer}>
-                        <Text style={styles.price}>{formatCurrency(product.price)}</Text>
+                        <Text
+                            style={styles.price}
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.85}
+                        >
+                            {formatCurrency(product.price)}
+                        </Text>
                         <TouchableOpacity
                             style={[
                                 styles.addButton,
@@ -275,6 +282,8 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '700',
         color: COLORS.primary,
+        flex: 1,
+        marginRight: 10,
     },
     addButton: {
         backgroundColor: COLORS.primary,

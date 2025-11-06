@@ -95,6 +95,16 @@ const ProductDetailScreen = ({ navigation, route }) => {
 
     const isLoading = productLoading || reviewsLoading;
 
+    // Resolve category name from Redux categories list based on numeric category_id
+    const categoriesState = useSelector((state) => state.categories || {});
+    const categoryName = (() => {
+        const list = categoriesState.categories || [];
+        const pid = product?.category_id;
+        if (!pid) return null;
+        const found = list.find(c => String(c.id || c._id) === String(pid));
+        return found?.name || null;
+    })();
+
     // Calculate average rating from reviews của sản phẩm hiện tại
     const averageRating = reviews && reviews.length > 0
         ? reviews.reduce((acc, review) => acc + review.rating, 0) / reviews.length
@@ -609,7 +619,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
                         <Text style={styles.sectionTitle}>Thông tin sản phẩm</Text>
                         <View style={styles.featureItem}>
                             <Icon name="label" size={16} color="#4caf50" />
-                            <Text style={styles.featureText}>Danh mục: {product?.category_id?.name || product?.category?.name || 'Chung'}</Text>
+                            <Text style={styles.featureText}>Danh mục: {categoryName || 'Chung'}</Text>
                         </View>
                         {product?.target && (
                             <View style={styles.featureItem}>
