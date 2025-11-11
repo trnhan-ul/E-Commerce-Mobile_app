@@ -291,8 +291,10 @@ const PaymentScreen = ({ navigation, route }) => {
 
     Alert.alert(
       "Xác nhận đơn hàng",
-      `Đặt hàng với ${paymentMethods.find((m) => m.id === selectedPayment)?.title
-      }?\n\nTổng cộng: ${formatCurrency(summary.total)}\nGiao đến: ${receiverInfo.receiver_address
+      `Đặt hàng với ${
+        paymentMethods.find((m) => m.id === selectedPayment)?.title
+      }?\n\nTổng cộng: ${formatCurrency(summary.total)}\nGiao đến: ${
+        receiverInfo.receiver_address
       }`,
       [
         {
@@ -305,18 +307,18 @@ const PaymentScreen = ({ navigation, route }) => {
           onPress: () => {
             // Prepare order data with all required fields
             const orderData = {
-              items: selectedItems.map(item => ({
+              items: selectedItems.map((item) => ({
                 product_id: item.id || item.product_id,
                 quantity: item.quantity,
-                price: item.price
+                price: item.price,
               })),
               total_amount: summary.total,
               shipping_address: receiverInfo.receiver_address,
               payment_method: selectedPayment,
-              notes: receiverInfo.notes || ''
+              notes: receiverInfo.notes || "",
             };
 
-            console.log('PaymentScreen - Creating order with data:', orderData);
+            console.log("PaymentScreen - Creating order with data:", orderData);
 
             // Dispatch create order action
             dispatch(createOrder(orderData));
@@ -587,8 +589,8 @@ const PaymentScreen = ({ navigation, route }) => {
                 </View>
               </View>
               {receiverInfo.receiver_name &&
-                receiverInfo.receiver_address &&
-                receiverInfo.receiver_phone ? (
+              receiverInfo.receiver_address &&
+              receiverInfo.receiver_phone ? (
                 <>
                   <Text style={styles.addressText}>
                     {receiverInfo.receiver_name}
@@ -631,7 +633,7 @@ const PaymentScreen = ({ navigation, route }) => {
                   selectedPayment === method.id && styles.selectedPaymentOption,
                   !method.available && styles.disabledPaymentOption,
                   index < paymentMethods.length - 1 &&
-                  styles.paymentOptionBorder,
+                    styles.paymentOptionBorder,
                 ]}
                 onPress={() =>
                   method.available && setSelectedPayment(method.id)
@@ -643,7 +645,7 @@ const PaymentScreen = ({ navigation, route }) => {
                     style={[
                       styles.radioButton,
                       selectedPayment === method.id &&
-                      styles.radioButtonSelected,
+                        styles.radioButtonSelected,
                       !method.available && styles.radioButtonDisabled,
                     ]}
                   >

@@ -214,19 +214,25 @@ const CartScreen = ({ navigation }) => {
       return;
     }
 
-    if (newQuantity > 99) {
-      Alert.alert("Số lượng không hợp lệ", "Số lượng tối đa cho phép là 99.", [
-        {
-          text: "OK",
-          onPress: () => {
-            // Reset về giá trị hợp lệ (99)
-            setEditingQuantity((prev) => ({
-              ...prev,
-              [cart_item_id]: "99",
-            }));
+    // Business Rule: Maximum 2 units per supercar product
+    const MAX_QUANTITY_PER_PRODUCT = 2;
+    if (newQuantity > MAX_QUANTITY_PER_PRODUCT) {
+      Alert.alert(
+        "Giới hạn số lượng",
+        `Đây là sản phẩm siêu xe cao cấp. Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Reset về giá trị hợp lệ
+              setEditingQuantity((prev) => ({
+                ...prev,
+                [product_id]: MAX_QUANTITY_PER_PRODUCT.toString(),
+              }));
+            },
           },
-        },
-      ]);
+        ]
+      );
       return;
     }
 

@@ -12,8 +12,18 @@ class CartService {
       const product = await databaseService.getProductById(productId);
       if (!product) throw new Error('Product not found');
 
+      console.log(
+        `📦 Adding to cart - Product: ${product.name}, Stock: ${product.stock_quantity}, Requested: ${quantity}`
+      );
+
+      // Business Rule: Maximum 2 units per supercar product
+      const MAX_QUANTITY_PER_PRODUCT = 2;
+
       if (product.stock_quantity < quantity) {
-        throw new Error('Insufficient stock');
+        console.error(
+          `❌ Insufficient stock - Available: ${product.stock_quantity}, Requested: ${quantity}`
+        );
+        throw new Error(`Sản phẩm chỉ còn ${product.stock_quantity} trong kho`);
       }
 
       // Check if item already exists in cart
@@ -22,16 +32,48 @@ class CartService {
       if (existingItem) {
         // Update quantity
         const newQuantity = existingItem.quantity + quantity;
-        if (newQuantity > product.stock_quantity) {
-          throw new Error('Insufficient stock');
+        console.log(
+          `📝 Updating cart - Current: ${existingItem.quantity}, Adding: ${quantity}, New total: ${newQuantity}`
+        );
+
+        // Check max quantity limit first
+        if (newQuantity > MAX_QUANTITY_PER_PRODUCT) {
+          console.error(
+            `❌ Exceeds maximum quantity - Requested: ${newQuantity}, Max allowed: ${MAX_QUANTITY_PER_PRODUCT}`
+          );
+          throw new Error(
+            `Đây là sản phẩm siêu xe cao cấp. Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm.`
+          );
         }
+
+        if (newQuantity > product.stock_quantity) {
+          console.error(
+            `❌ Total quantity exceeds stock - New total: ${newQuantity}, Stock: ${product.stock_quantity}`
+          );
+          throw new Error(
+            `Chỉ có thể thêm tối đa ${
+              product.stock_quantity - existingItem.quantity
+            } sản phẩm nữa`
+          );
+        }
+
         return await this.updateCartItem(productId, newQuantity);
       } else {
-        // Add new item
+        // Add new item - check max quantity for initial add
+        if (quantity > MAX_QUANTITY_PER_PRODUCT) {
+          console.error(
+            `❌ Exceeds maximum quantity - Requested: ${quantity}, Max allowed: ${MAX_QUANTITY_PER_PRODUCT}`
+          );
+          throw new Error(
+            `Đây là sản phẩm siêu xe cao cấp. Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm.`
+          );
+        }
+
+        console.log(`✅ Adding new item to cart`);
         const cartItem = {
           user_id: userId,
           product_id: productId,
-          quantity: quantity
+          quantity: quantity,
         };
         return await databaseService.addCartItem(cartItem);
       }
