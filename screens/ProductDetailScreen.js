@@ -320,8 +320,24 @@ const ProductDetailScreen = ({ navigation, route }) => {
   };
 
   const handleQuantityChange = (type) => {
+    // Business Rule: Maximum 2 units per supercar product
+    const MAX_QUANTITY_PER_PRODUCT = 2;
+
     if (type === "increase") {
       const currentStock = getStockQuantity();
+
+      // Check max quantity limit first
+      if (quantity >= MAX_QUANTITY_PER_PRODUCT) {
+        Toast.show({
+          type: "error",
+          text1: "Giới hạn số lượng",
+          text2: `Chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm siêu xe`,
+          position: "top",
+          visibilityTime: 3000,
+        });
+        return;
+      }
+
       if (quantity >= currentStock) {
         // Show toast notification when trying to exceed stock
         Toast.show({

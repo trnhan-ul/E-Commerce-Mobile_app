@@ -721,61 +721,71 @@ class DatabaseService {
     // Tạo đơn hàng mới
     async createOrder(userId, cartItems, totalAmount, shippingAddress, paymentMethod, notes = '') {
         try {
-            if (!this.db) {
-                throw new Error('Database not initialized');
+          if (!this.db) {
+            throw new Error("Database not initialized");
+          }
+
+          let orderId;
+
+          // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
+          await this.db.withExclusiveTransactionAsync(async () => {
+            // BƯỚC 1: Kiểm tra stock cho tất cả sản phẩm TRƯỚC KHI tạo order
+            for (const item of cartItems) {
+              const product = await this.db.getFirstAsync(
+                "SELECT id, name, stock_quantity FROM products WHERE id = ?",
+                [item.product_id]
+              );
+
+              if (!product) {
+                throw new Error(
+                  `Sản phẩm không tồn tại (ID: ${item.product_id})`
+                );
+              }
+
+              if (product.stock_quantity < item.quantity) {
+                throw new Error(
+                  `Sản phẩm "${product.name}" không đủ hàng. Còn lại: ${product.stock_quantity}, yêu cầu: ${item.quantity}`
+                );
+              }
             }
 
-            let orderId;
+            // BƯỚC 2: Tạo đơn hàng
+            const orderResult = await this.db.runAsync(
+              "INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)",
+              [userId, totalAmount, shippingAddress, paymentMethod, notes]
+            );
 
-            // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
-            await this.db.withExclusiveTransactionAsync(async () => {
-                // BƯỚC 1: Kiểm tra stock cho tất cả sản phẩm TRƯỚC KHI tạo order
-                for (const item of cartItems) {
-                    const product = await this.db.getFirstAsync(
-                        'SELECT id, name, stock_quantity FROM products WHERE id = ?',
-                        [item.product_id]
-                    );
+            orderId = orderResult.lastInsertRowId;
 
-                    if (!product) {
-                        throw new Error(`Sản phẩm không tồn tại (ID: ${item.product_id})`);
-                    }
+            // BƯỚC 3: Thêm các sản phẩm vào order_items VÀ TRỪ STOCK
+            for (const item of cartItems) {
+              // Thêm vào order_items
+              await this.db.runAsync(
+                "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
+                [orderId, item.product_id, item.quantity, item.price]
+              );
 
-                    if (product.stock_quantity < item.quantity) {
-                        throw new Error(`Sản phẩm "${product.name}" không đủ hàng. Còn lại: ${product.stock_quantity}, yêu cầu: ${item.quantity}`);
-                    }
-                }
+              // TRỪ STOCK
+              const updateResult = await this.db.runAsync(
+                "UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [item.quantity, item.product_id]
+              );
 
-                // BƯỚC 2: Tạo đơn hàng
-                const orderResult = await this.db.runAsync(
-                    'INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)',
-                    [userId, totalAmount, shippingAddress, paymentMethod, notes]
-                );
+              console.log(
+                `✅ Đã trừ ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`
+              );
+            }
 
-                orderId = orderResult.lastInsertRowId;
+            // BƯỚC 4: Xóa giỏ hàng
+            await this.db.runAsync("DELETE FROM cart WHERE user_id = ?", [
+              userId,
+            ]);
+          });
 
-                // BƯỚC 3: Thêm các sản phẩm vào order_items VÀ TRỪ STOCK
-                for (const item of cartItems) {
-                    // Thêm vào order_items
-                    await this.db.runAsync(
-                        'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
-                        [orderId, item.product_id, item.quantity, item.price]
-                    );
-
-                    // TRỪ STOCK
-                    const updateResult = await this.db.runAsync(
-                        'UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                        [item.quantity, item.product_id]
-                    );
-
-                    console.log(`✅ Đã trừ ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`);
-                }
-
-                // BƯỚC 4: Xóa giỏ hàng
-                await this.db.runAsync('DELETE FROM cart WHERE user_id = ?', [userId]);
-            });
-
-            console.log(`✅ Order ${orderId} đã được tạo và stock đã được cập nhật`);
-            return orderId;
+          console.log(
+            `✅ Order ${orderId} đã được tạo và stock đã được cập nhật`
+          );
+          return orderId;
         } catch (error) {
             console.error('Error creating order:', error);
             throw error;

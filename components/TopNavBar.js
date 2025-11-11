@@ -9,65 +9,82 @@ import { useSelector } from 'react-redux';
 const TopNavBar = () => {
     const navigation = useNavigation();
     const { cart } = useSelector((state) => state.cart);
-    const { isAuthenticated } = useSelector((state) => state.auth);
+    const { isAuthenticated, user } = useSelector((state) => state.auth);
     const itemCount = cart?.item_count || 0;
 
+    // Check if user is admin
+    const isAdmin = (user?.role_name || user?.role)?.toLowerCase() === "admin";
+
     const handleCartPress = () => {
-        if (isAuthenticated) {
-            navigation.navigate('Cart');
-        } else {
-            // Hiển thị thông báo yêu cầu đăng nhập
-            Alert.alert(
-                'Yêu cầu đăng nhập',
-                'Bạn cần đăng nhập để xem giỏ hàng. Bạn có muốn đăng nhập ngay không?',
-                [
-                    { text: 'Hủy', style: 'cancel' },
-                    { text: 'Đăng nhập', onPress: () => navigation.navigate('Login') }
-                ]
-            );
-        }
+      if (!isAuthenticated) {
+        // Hiển thị thông báo yêu cầu đăng nhập
+        Alert.alert(
+          "Yêu cầu đăng nhập",
+          "Bạn cần đăng nhập để xem giỏ hàng. Bạn có muốn đăng nhập ngay không?",
+          [
+            { text: "Hủy", style: "cancel" },
+            { text: "Đăng nhập", onPress: () => navigation.navigate("Login") },
+          ]
+        );
+      } else if (isAdmin) {
+        // Admin cannot access cart
+        Alert.alert(
+          "Không khả dụng",
+          "Tài khoản Admin không thể truy cập giỏ hàng.",
+          [{ text: "OK" }]
+        );
+      } else {
+        // Regular user - navigate to cart
+        navigation.navigate("Cart");
+      }
     };
 
     const handleLoginPress = () => {
-        navigation.navigate('Login');
+      navigation.navigate("Login");
     };
 
     return (
-        <>
-            <StatusBar barStyle="light-content" backgroundColor={COLORS.secondary} />
-            <LinearGradient
-                colors={[COLORS.primary, COLORS.secondary]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.container}
-            >
-                <Text style={styles.logo}>CarSupper</Text>
+      <>
+        <StatusBar
+          barStyle="light-content"
+          backgroundColor={COLORS.secondary}
+        />
+        <LinearGradient
+          colors={[COLORS.primary, COLORS.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.container}
+        >
+          <Text style={styles.logo}>CarSupper</Text>
 
-                <View style={styles.rightButtons}>
-                    {!isAuthenticated && (
-                        <TouchableOpacity
-                            style={styles.loginButton}
-                            onPress={handleLoginPress}
-                        >
-                            <Icon name="person" size={20} color={COLORS.white} />
-                            <Text style={styles.loginText}>Đăng nhập</Text>
-                        </TouchableOpacity>
-                    )}
+          <View style={styles.rightButtons}>
+            {!isAuthenticated && (
+              <TouchableOpacity
+                style={styles.loginButton}
+                onPress={handleLoginPress}
+              >
+                <Icon name="person" size={20} color={COLORS.white} />
+                <Text style={styles.loginText}>Đăng nhập</Text>
+              </TouchableOpacity>
+            )}
 
-                    <TouchableOpacity
-                        style={styles.cartButton}
-                        onPress={handleCartPress}
-                    >
-                        <Icon name="shopping-cart" size={24} color={COLORS.white} />
-                        {isAuthenticated && itemCount > 0 && (
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{itemCount}</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
-                </View>
-            </LinearGradient>
-        </>
+            {/* Hide cart icon for admin */}
+            {!isAdmin && (
+              <TouchableOpacity
+                style={styles.cartButton}
+                onPress={handleCartPress}
+              >
+                <Icon name="shopping-cart" size={24} color={COLORS.white} />
+                {isAuthenticated && itemCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{itemCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
+          </View>
+        </LinearGradient>
+      </>
     );
 };
 
