@@ -729,7 +729,23 @@ class DatabaseService {
 
             // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
             await this.db.withExclusiveTransactionAsync(async () => {
-                // Tạo đơn hàng
+                // BƯỚC 1: Kiểm tra stock cho tất cả sản phẩm TRƯỚC KHI tạo order
+                for (const item of cartItems) {
+                    const product = await this.db.getFirstAsync(
+                        'SELECT id, name, stock_quantity FROM products WHERE id = ?',
+                        [item.product_id]
+                    );
+
+                    if (!product) {
+                        throw new Error(`Sản phẩm không tồn tại (ID: ${item.product_id})`);
+                    }
+
+                    if (product.stock_quantity < item.quantity) {
+                        throw new Error(`Sản phẩm "${product.name}" không đủ hàng. Còn lại: ${product.stock_quantity}, yêu cầu: ${item.quantity}`);
+                    }
+                }
+
+                // BƯỚC 2: Tạo đơn hàng
                 const orderResult = await this.db.runAsync(
                     'INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)',
                     [userId, totalAmount, shippingAddress, paymentMethod, notes]
@@ -737,18 +753,28 @@ class DatabaseService {
 
                 orderId = orderResult.lastInsertRowId;
 
-                // Thêm các sản phẩm vào order_items
+                // BƯỚC 3: Thêm các sản phẩm vào order_items VÀ TRỪ STOCK
                 for (const item of cartItems) {
+                    // Thêm vào order_items
                     await this.db.runAsync(
                         'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
                         [orderId, item.product_id, item.quantity, item.price]
                     );
+
+                    // TRỪ STOCK
+                    const updateResult = await this.db.runAsync(
+                        'UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [item.quantity, item.product_id]
+                    );
+
+                    console.log(`✅ Đã trừ ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`);
                 }
 
-                // Xóa giỏ hàng
+                // BƯỚC 4: Xóa giỏ hàng
                 await this.db.runAsync('DELETE FROM cart WHERE user_id = ?', [userId]);
             });
 
+            console.log(`✅ Order ${orderId} đã được tạo và stock đã được cập nhật`);
             return orderId;
         } catch (error) {
             console.error('Error creating order:', error);
@@ -810,10 +836,49 @@ class DatabaseService {
     // Cập nhật trạng thái đơn hàng
     async updateOrderStatus(orderId, status) {
         try {
-            await this.db.runAsync(
-                'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-                [status, orderId]
+            const oldOrder = await this.db.getFirstAsync(
+                'SELECT status FROM orders WHERE id = ?',
+                [orderId]
             );
+
+            if (!oldOrder) {
+                throw new Error('Order not found');
+            }
+
+            // Nếu cancel order, hoàn lại stock
+            if (status === 'cancelled' && oldOrder.status !== 'cancelled') {
+                await this.db.withExclusiveTransactionAsync(async () => {
+                    // Lấy danh sách items trong order
+                    const items = await this.db.getAllAsync(
+                        'SELECT product_id, quantity FROM order_items WHERE order_id = ?',
+                        [orderId]
+                    );
+
+                    // Hoàn lại stock cho mỗi sản phẩm
+                    for (const item of items) {
+                        await this.db.runAsync(
+                            'UPDATE products SET stock_quantity = stock_quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                            [item.quantity, item.product_id]
+                        );
+                        console.log(`✅ Đã hoàn ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`);
+                    }
+
+                    // Cập nhật trạng thái order
+                    await this.db.runAsync(
+                        'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                        [status, orderId]
+                    );
+                });
+
+                console.log(`✅ Order ${orderId} đã bị hủy và stock đã được hoàn lại`);
+            } else {
+                // Chỉ cập nhật status
+                await this.db.runAsync(
+                    'UPDATE orders SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                    [status, orderId]
+                );
+            }
+
             return true;
         } catch (error) {
             console.error('Error updating order status:', error);
