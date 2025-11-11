@@ -553,11 +553,58 @@ class DatabaseService {
 
             const userId = result.lastInsertRowId;
             console.log(`✅ Created user: ${user.email} with ID: ${userId}`);
+
+            // Log password để kiểm tra có được hash không
+            console.log('📝 Password stored:', user.password.substring(0, 20) + '...');
+            console.log('📝 Password length:', user.password.length);
+            console.log('📝 Is hashed (SHA-256 = 64 chars):', user.password.length === 64);
+
             return userId;
         } catch (error) {
             console.error('❌ Error creating user:', error);
             console.error('User data:', { email: user.email, role: user.role });
             return null;
+        }
+    }
+
+    // Debug function: Lấy user và show password (chỉ dùng để debug)
+    async debugGetUserPassword(email) {
+        try {
+            const user = await this.db.getFirstAsync('SELECT email, password, username FROM users WHERE email = ?', [email]);
+            if (user) {
+                console.log('\n🔍 DEBUG - User Info:');
+                console.log('Email:', user.email);
+                console.log('Username:', user.username);
+                console.log('Password (first 20 chars):', user.password.substring(0, 20) + '...');
+                console.log('Password length:', user.password.length);
+                console.log('Is hashed (SHA-256):', user.password.length === 64 ? '✅ YES' : '❌ NO');
+            }
+            return user;
+        } catch (error) {
+            console.error('Error in debugGetUserPassword:', error);
+            return null;
+        }
+    }
+
+    // Debug function: List tất cả users
+    async debugListAllUsers() {
+        try {
+            const users = await this.db.getAllAsync('SELECT id, email, username, role, password FROM users');
+            console.log('\n📊 DEBUG - All Users in Database:');
+            console.log('Total users:', users.length);
+            users.forEach(user => {
+                console.log(`\n👤 User #${user.id}:`);
+                console.log('  Email:', user.email);
+                console.log('  Username:', user.username || 'N/A');
+                console.log('  Role:', user.role);
+                console.log('  Password (first 20):', user.password.substring(0, 20) + '...');
+                console.log('  Password length:', user.password.length);
+                console.log('  Is hashed:', user.password.length === 64 ? '✅' : '❌');
+            });
+            return users;
+        } catch (error) {
+            console.error('Error in debugListAllUsers:', error);
+            return [];
         }
     }
 

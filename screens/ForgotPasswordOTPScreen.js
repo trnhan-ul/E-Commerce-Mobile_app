@@ -13,7 +13,14 @@ import {
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import authService from '../services/authService';
-import { validatePassword } from '../utils/authUtils';
+
+// Password validation helper
+const validatePassword = (password) => {
+  if (password.length < 6) {
+    return { valid: false, message: 'Mật khẩu phải có ít nhất 6 ký tự' };
+  }
+  return { valid: true };
+};
 
 const ForgotPasswordOTPScreen = () => {
   const route = useRoute();
@@ -50,7 +57,7 @@ const ForgotPasswordOTPScreen = () => {
 
   const handleVerifyOTP = async () => {
     const otpCode = otp.join('');
-    
+
     if (otpCode.length !== 6) {
       Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ 6 số OTP');
       return;
@@ -58,8 +65,10 @@ const ForgotPasswordOTPScreen = () => {
 
     try {
       setLoading(true);
-      const result = await authService.verifyOTP(email, otpCode);
-      
+
+      // Don't clear OTP after verification - we need it for reset password
+      const result = await authService.verifyOTP(email, otpCode, false);
+
       if (result.success) {
         setOtpVerified(true);
         Alert.alert('Thành công', 'OTP đã được xác thực. Vui lòng nhập mật khẩu mới');
@@ -89,11 +98,11 @@ const ForgotPasswordOTPScreen = () => {
     }
 
     const otpCode = otp.join('');
-    
+
     try {
       setLoading(true);
       const result = await authService.resetPassword(email, newPassword, otpCode);
-      
+
       if (result.success) {
         Alert.alert(
           'Thành công',
@@ -117,7 +126,7 @@ const ForgotPasswordOTPScreen = () => {
     try {
       setLoading(true);
       const result = await authService.forgotPassword(email);
-      
+
       if (result.success) {
         Alert.alert('Thành công', 'Đã gửi lại OTP mới');
         setCountdown(60);

@@ -261,20 +261,20 @@ export const supercarShopSampleData = {
         }
     ],
 
-    // Users (giữ nguyên)
+    // Users (passwords are SHA-256 hashed)
     users: [
         {
             email: 'admin@shopapp.com',
-            username: 'admin', // Thêm username để dễ đăng nhập
-            password: 'admin123',
+            username: 'admin',
+            password: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', // admin123 hashed
             full_name: 'Admin User',
             phone: '0123456789',
             role: 'admin'
         },
         {
             email: 'user@shopapp.com',
-            username: 'user', // Thêm username để dễ đăng nhập
-            password: 'user123',
+            username: 'user',
+            password: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // user123 hashed
             full_name: 'Test User',
             phone: '0987654321',
             role: 'user'

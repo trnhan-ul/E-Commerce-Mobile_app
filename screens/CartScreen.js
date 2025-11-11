@@ -44,7 +44,8 @@ const CartScreen = ({ navigation }) => {
   useEffect(() => {
     if (cart && cart.items) {
       const transformedItems = cart.items.map((item) => ({
-        id: item.product_id,
+        id: item.id || item.cart_id, // Use cart item ID (unique per cart item)
+        product_id: item.product_id, // Keep product_id separate
         name: item.name,
         price: item.price, // Giữ nguyên giá VND
         image: item.image_url || item.image, // Support both field names
@@ -140,7 +141,7 @@ const CartScreen = ({ navigation }) => {
       showRemoveConfirmation(product_id);
     }
   };
-  const handleQuantityChange = (product_id, text) => {
+  const handleQuantityChange = (cart_item_id, text) => {
     // Chỉ cho phép nhập số và không giới hạn độ dài ở đây
     const numericText = text.replace(/[^0-9]/g, "");
 
@@ -148,12 +149,18 @@ const CartScreen = ({ navigation }) => {
     // Điều này đảm bảo keyboard không bị đóng
     setEditingQuantity((prev) => ({
       ...prev,
-      [product_id]: numericText,
+      [cart_item_id]: numericText,
     }));
   };
 
-  const handleQuantitySubmit = async (product_id) => {
-    const newQuantityText = editingQuantity[product_id];
+  const handleQuantitySubmit = async (cart_item_id) => {
+    const newQuantityText = editingQuantity[cart_item_id];
+
+    // Find the item to get product_id
+    const item = cartItems.find((i) => i.id === cart_item_id);
+    if (!item) return;
+
+    const product_id = item.product_id;
 
     // Nếu không có giá trị trong editing state, không làm gì
     if (newQuantityText === undefined) {
@@ -164,7 +171,7 @@ const CartScreen = ({ navigation }) => {
     if (!newQuantityText || newQuantityText.trim() === "") {
       setEditingQuantity((prev) => {
         const newState = { ...prev };
-        delete newState[product_id];
+        delete newState[cart_item_id];
         return newState;
       });
       return;
@@ -185,7 +192,7 @@ const CartScreen = ({ navigation }) => {
               // Reset về giá trị cũ
               setEditingQuantity((prev) => {
                 const newState = { ...prev };
-                delete newState[product_id];
+                delete newState[cart_item_id];
                 return newState;
               });
             },
@@ -196,7 +203,7 @@ const CartScreen = ({ navigation }) => {
             onPress: () => {
               setEditingQuantity((prev) => {
                 const newState = { ...prev };
-                delete newState[product_id];
+                delete newState[cart_item_id];
                 return newState;
               });
               removeItem(product_id);
@@ -215,7 +222,7 @@ const CartScreen = ({ navigation }) => {
             // Reset về giá trị hợp lệ (99)
             setEditingQuantity((prev) => ({
               ...prev,
-              [product_id]: "99",
+              [cart_item_id]: "99",
             }));
           },
         },
@@ -223,20 +230,18 @@ const CartScreen = ({ navigation }) => {
       return;
     }
 
-    const currentItem = cartItems.find((item) => item.id === product_id);
-
     // Nếu quantity không thay đổi, chỉ clear editing state
-    if (currentItem && newQuantity === currentItem.quantity) {
+    if (newQuantity === item.quantity) {
       setEditingQuantity((prev) => {
         const newState = { ...prev };
-        delete newState[product_id];
+        delete newState[cart_item_id];
         return newState;
       });
       return;
     }
 
     // Set updating state
-    setIsUpdating((prev) => ({ ...prev, [product_id]: true }));
+    setIsUpdating((prev) => ({ ...prev, [cart_item_id]: true }));
 
     try {
       await dispatch(
@@ -247,7 +252,7 @@ const CartScreen = ({ navigation }) => {
       ).unwrap();
       setEditingQuantity((prev) => {
         const newState = { ...prev };
-        delete newState[product_id];
+        delete newState[cart_item_id];
         return newState;
       });
     } catch (error) {
@@ -260,13 +265,13 @@ const CartScreen = ({ navigation }) => {
       });
       setEditingQuantity((prev) => {
         const newState = { ...prev };
-        delete newState[product_id];
+        delete newState[cart_item_id];
         return newState;
       });
     } finally {
       setIsUpdating((prev) => {
         const newState = { ...prev };
-        delete newState[product_id];
+        delete newState[cart_item_id];
         return newState;
       });
     }

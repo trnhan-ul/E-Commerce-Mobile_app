@@ -13,29 +13,44 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import authService from '../services/authService';
-import { validateEmail } from '../utils/authUtils';
+
+// Email validation helper
+const validateEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
 const ForgotPasswordScreen = () => {
   const navigation = useNavigation();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
 
+  console.log('🔄 ForgotPasswordScreen rendered - Email:', email, 'Loading:', loading);
+
   const handleSendOTP = async () => {
+    console.log('🔔 handleSendOTP called with email:', email);
+
     // Validate email
     if (!email.trim()) {
+      console.log('❌ Email is empty');
       Alert.alert('Lỗi', 'Vui lòng nhập email');
       return;
     }
 
     if (!validateEmail(email)) {
+      console.log('❌ Email validation failed:', email);
       Alert.alert('Lỗi', 'Email không hợp lệ');
       return;
     }
 
+    console.log('✅ Email validation passed, calling forgotPassword...');
+
     try {
       setLoading(true);
       const result = await authService.forgotPassword(email);
-      
+
+      console.log('📧 forgotPassword result:', result);
+
       if (result.success) {
         Alert.alert(
           'Thành công',
@@ -52,6 +67,7 @@ const ForgotPasswordScreen = () => {
         );
       }
     } catch (error) {
+      console.error('❌ Error in handleSendOTP:', error);
       Alert.alert('Lỗi', error.message || 'Không thể gửi OTP');
     } finally {
       setLoading(false);

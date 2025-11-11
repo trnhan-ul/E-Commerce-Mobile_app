@@ -1,16 +1,35 @@
 import databaseService from './databaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Crypto from 'expo-crypto';
 
 class AuthService {
+  // Hash password using SHA-256
+  async hashPassword(password) {
+    try {
+      const hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        password
+      );
+      return hash;
+    } catch (error) {
+      console.error('Error hashing password:', error);
+      throw new Error('Failed to hash password');
+    }
+  }
+
   // Register new user
   async register(userData) {
     try {
       console.log('📝 Register - Input userData:', JSON.stringify(userData, null, 2));
 
+      // Hash the password before storing
+      const hashedPassword = await this.hashPassword(userData.password);
+      console.log('🔐 Password hashed successfully');
+
       const user = {
         username: userData.username,
         email: userData.email,
-        password: userData.password, // In real app, hash this password
+        password: hashedPassword, // Store hashed password
         full_name: userData.full_name || '',
         phone: userData.phone || '',
         role: 'user'
@@ -51,18 +70,22 @@ class AuthService {
     try {
       console.log('🔐 Login attempt - Email:', email, 'Password length:', password?.length);
 
+      // Hash the password before comparing
+      const hashedPassword = await this.hashPassword(password);
+      console.log('🔐 Password hashed for comparison');
+
       // Kiểm tra database đã sẵn sàng
       const isReady = await databaseService.ensureDatabaseReady();
       if (!isReady) {
         throw new Error('Database not ready');
       }
 
-      // Query user by email and password
+      // Query user by email and hashed password
       const query = `
         SELECT * FROM users 
         WHERE email = ? AND password = ?
       `;
-      const user = await databaseService.db.getFirstAsync(query, [email, password]);
+      const user = await databaseService.db.getFirstAsync(query, [email, hashedPassword]);
 
       console.log('🔍 Login query result:', user ? `Found user: ${user.email}` : 'No user found');
 
@@ -221,9 +244,9 @@ class AuthService {
   }
 
   // Verify OTP
-  async verifyOTP(email, otp) {
+  async verifyOTP(email, otp, clearAfterVerify = true) {
     try {
-      console.log('🔍 Verifying OTP - Email:', email, 'OTP:', otp);
+      console.log('🔍 Verifying OTP - Email:', email, 'OTP:', otp, 'Clear after verify:', clearAfterVerify);
 
       const storedOTP = await AsyncStorage.getItem(`otp_${email}`);
       const otpTime = await AsyncStorage.getItem(`otp_time_${email}`);
@@ -255,8 +278,13 @@ class AuthService {
 
       console.log('✅ OTP verified successfully');
 
-      // Clear OTP after successful verification
-      await AsyncStorage.multiRemove([`otp_${email}`, `otp_time_${email}`]);
+      // Clear OTP after successful verification (only if specified)
+      if (clearAfterVerify) {
+        console.log('🗑️  Clearing OTP from storage');
+        await AsyncStorage.multiRemove([`otp_${email}`, `otp_time_${email}`]);
+      } else {
+        console.log('💾 Keeping OTP in storage for next verification');
+      }
 
       return { success: true };
     } catch (error) {
@@ -270,10 +298,13 @@ class AuthService {
     try {
       console.log('🔐 Reset Password - Email:', email);
 
-      // Verify OTP first
-      await this.verifyOTP(email, otp);
+      // Verify OTP first (and clear it this time)
+      await this.verifyOTP(email, otp, true);
 
-      console.log('✅ OTP verified, updating password...');
+      console.log('✅ OTP verified, hashing new password...');
+
+      // Hash the new password
+      const hashedPassword = await this.hashPassword(newPassword);
 
       // Update password
       const query = `
@@ -281,7 +312,7 @@ class AuthService {
         SET password = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE email = ?
       `;
-      const result = await databaseService.db.runAsync(query, [newPassword, email]);
+      const result = await databaseService.db.runAsync(query, [hashedPassword, email]);
 
       console.log('📝 Password update result - changes:', result.changes);
 
@@ -307,13 +338,19 @@ class AuthService {
 
       const user = JSON.parse(userData);
 
+      // Hash current password for verification
+      const hashedCurrentPassword = await this.hashPassword(currentPassword);
+
       // Verify current password
       const query = 'SELECT id FROM users WHERE id = ? AND password = ?';
-      const result = await databaseService.db.getFirstAsync(query, [user.id, currentPassword]);
+      const result = await databaseService.db.getFirstAsync(query, [user.id, hashedCurrentPassword]);
 
       if (!result) {
         throw new Error('Current password is incorrect');
       }
+
+      // Hash new password
+      const hashedNewPassword = await this.hashPassword(newPassword);
 
       // Update password
       const updateQuery = `
@@ -321,7 +358,7 @@ class AuthService {
         SET password = ?, updated_at = CURRENT_TIMESTAMP 
         WHERE id = ?
       `;
-      const updateResult = await databaseService.db.runAsync(updateQuery, [newPassword, user.id]);
+      const updateResult = await databaseService.db.runAsync(updateQuery, [hashedNewPassword, user.id]);
 
       return updateResult.changes > 0;
     } catch (error) {
