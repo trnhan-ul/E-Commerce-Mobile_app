@@ -448,6 +448,34 @@ const CartScreen = ({ navigation }) => {
       return;
     }
 
+    // Kiểm tra sản phẩm có stock thấp
+    const lowStockItems = selectedProducts.filter(
+      (item) => item.in_stock > 0 && item.in_stock <= 5
+    );
+
+    if (lowStockItems.length > 0) {
+      const lowStockNames = lowStockItems
+        .map((item) => `• ${item.name}: chỉ còn ${item.in_stock} sản phẩm`)
+        .join("\n");
+
+      Alert.alert(
+        "⚠️ Cảnh báo số lượng hàng",
+        `Các sản phẩm sau sắp hết hàng:\n\n${lowStockNames}\n\nBạn có muốn tiếp tục thanh toán?`,
+        [
+          { text: "Quay lại", style: "cancel" },
+          {
+            text: "Tiếp tục",
+            onPress: () => proceedToCheckout(selectedProducts),
+          },
+        ]
+      );
+      return;
+    }
+
+    proceedToCheckout(selectedProducts);
+  };
+
+  const proceedToCheckout = (selectedProducts) => {
     const selected_product_ids = selectedProducts.map((item) => item.id);
 
     navigation.navigate("Payment", {

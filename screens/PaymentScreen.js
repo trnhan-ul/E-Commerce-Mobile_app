@@ -134,14 +134,31 @@ const PaymentScreen = ({ navigation, route }) => {
   // Handle order creation error
   useEffect(() => {
     if (error) {
-      Alert.alert("Đặt hàng thất bại", error, [
-        {
-          text: "Thử lại",
-          onPress: () => dispatch(clearOrderState()),
-        },
-      ]);
+      // Check if error is about stock
+      const isStockError =
+        error.includes("không đủ hàng") ||
+        error.includes("Insufficient stock") ||
+        error.includes("Còn lại:");
+
+      Alert.alert(
+        isStockError ? "❌ Sản phẩm hết hàng" : "Đặt hàng thất bại",
+        isStockError
+          ? `${error}\n\nVui lòng quay lại giỏ hàng và cập nhật số lượng.`
+          : error,
+        [
+          {
+            text: isStockError ? "Quay lại giỏ hàng" : "Thử lại",
+            onPress: () => {
+              dispatch(clearOrderState());
+              if (isStockError) {
+                navigation.goBack(); // Go back to cart
+              }
+            },
+          },
+        ]
+      );
     }
-  }, [error, dispatch]);
+  }, [error, dispatch, navigation]);
 
   const handleEditAddress = () => {
     // Initialize with current receiver info or empty values
