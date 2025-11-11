@@ -28,13 +28,12 @@ export const sendOtp = createAsyncThunk(
     'auth/sendOtp',
     async ({ user_name, email, password }, { rejectWithValue }) => {
         try {
-            // For registration OTP, we use forgotPassword to generate OTP
-            // Then store registration data temporarily
-            const response = await authService.forgotPassword(email);
+            // Use sendRegistrationOTP for registration (doesn't check if email exists)
+            const response = await authService.sendRegistrationOTP(email, user_name);
 
             // Store registration data temporarily for after OTP verification
             await AsyncStorage.setItem('pendingRegistration', JSON.stringify({
-                user_name,
+                username: user_name, // Use 'username' key to match register method
                 email,
                 password
             }));

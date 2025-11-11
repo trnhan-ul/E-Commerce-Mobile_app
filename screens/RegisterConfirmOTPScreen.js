@@ -11,12 +11,15 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { useDispatch } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import authService from '../services/authService';
+import { confirmOtp } from '../store/slices/authSlice';
 
 const RegisterConfirmOTPScreen = () => {
   const route = useRoute();
   const navigation = useNavigation();
+  const dispatch = useDispatch();
   const { email, otp: sentOTP } = route.params || {};
 
   // Safety check: Nếu không có email, quay lại màn hình trước
@@ -69,23 +72,29 @@ const RegisterConfirmOTPScreen = () => {
     try {
       setLoading(true);
 
-      // Verify OTP
-      const result = await authService.verifyOTP(email, otpCode);
+      console.log('🔐 Verifying OTP and registering user...');
 
-      if (result.success) {
-        Alert.alert(
-          'Thành công',
-          'Xác thực OTP thành công!',
-          [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('Login')
+      // Dispatch confirmOtp action - this will verify OTP AND register user
+      const result = await dispatch(confirmOtp(otpCode)).unwrap();
+
+      console.log('✅ Registration complete:', result);
+
+      Alert.alert(
+        'Thành công',
+        'Đăng ký thành công! Bạn đã được tự động đăng nhập.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              // Navigate to HomePage (not Home)
+              navigation.replace('HomePage');
             }
-          ]
-        );
-      }
+          }
+        ]
+      );
     } catch (error) {
-      Alert.alert('Lỗi', error.message || 'OTP không hợp lệ hoặc đã hết hạn');
+      console.error('❌ Registration error:', error);
+      Alert.alert('Lỗi', error || 'OTP không hợp lệ hoặc đã hết hạn');
     } finally {
       setLoading(false);
     }

@@ -63,9 +63,9 @@ const RegisterScreen = () => {
                 text1: 'Thành công',
                 text2: auth?.otpMessage,
             });
-            // TODO: điều hướng sang màn hình OTP sau 1s
+            // Navigate to OTP screen
             setTimeout(() => {
-                navigation.navigate('VerifyOtp', { email }); // hoặc màn nào bạn muốn
+                navigation.navigate('VerifyOtp', { email });
             }, 1000);
         } else if (auth?.otpStatus === 'error') {
             console.log('OTP Error Message:', auth?.otpMessage); // Debug log

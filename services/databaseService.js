@@ -547,8 +547,8 @@ class DatabaseService {
             }
 
             const result = await this.db.runAsync(
-                'INSERT INTO users (email, password, full_name, phone, avatar_url, role) VALUES (?, ?, ?, ?, ?, ?)',
-                [user.email, user.password, user.full_name || '', user.phone || '', user.avatar_url || '', user.role || 'user']
+                'INSERT INTO users (email, password, username, full_name, phone, avatar_url, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+                [user.email, user.password, user.username || '', user.full_name || '', user.phone || '', user.avatar_url || '', user.role || 'user']
             );
 
             const userId = result.lastInsertRowId;

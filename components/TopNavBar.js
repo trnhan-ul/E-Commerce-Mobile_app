@@ -41,11 +41,11 @@ const TopNavBar = () => {
                 end={{ x: 1, y: 1 }}
                 style={styles.container}
             >
-                <Text style={styles.logo}>ShopApp</Text>
-                
+                <Text style={styles.logo}>CarSupper</Text>
+
                 <View style={styles.rightButtons}>
                     {!isAuthenticated && (
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.loginButton}
                             onPress={handleLoginPress}
                         >
@@ -53,8 +53,8 @@ const TopNavBar = () => {
                             <Text style={styles.loginText}>Đăng nhập</Text>
                         </TouchableOpacity>
                     )}
-                    
-                    <TouchableOpacity 
+
+                    <TouchableOpacity
                         style={styles.cartButton}
                         onPress={handleCartPress}
                     >

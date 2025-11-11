@@ -5,6 +5,8 @@ class AuthService {
   // Register new user
   async register(userData) {
     try {
+      console.log('📝 Register - Input userData:', JSON.stringify(userData, null, 2));
+
       const user = {
         username: userData.username,
         email: userData.email,
@@ -14,41 +16,67 @@ class AuthService {
         role: 'user'
       };
 
+      console.log('📝 Register - User object to create:', JSON.stringify(user, null, 2));
+
       // Check if username or email already exists
       const existingUser = await this.checkUserExists(userData.username, userData.email);
       if (existingUser) {
+        console.error('❌ User already exists:', existingUser);
         throw new Error('Username or email already exists');
       }
 
-      const userId = await databaseService.addUser(user);
+      console.log('🔄 Creating user in database...');
+      const userId = await databaseService.createUser(user);
+      console.log('✅ User created with ID:', userId);
 
-      // Auto login after registration
-      const loginResult = await this.login(userData.username, userData.password);
+      if (!userId) {
+        console.error('❌ Failed to create user - userId is null');
+        throw new Error('Failed to create user in database');
+      }
+
+      // Auto login after registration - use email, not username
+      console.log('🔐 Attempting auto-login with email:', userData.email, 'password:', userData.password);
+      const loginResult = await this.login(userData.email, userData.password);
+      console.log('✅ Auto-login successful');
       return loginResult;
     } catch (error) {
-      console.error('AuthService - Error registering user:', error);
+      console.error('❌ AuthService - Error registering user:', error);
+      console.error('❌ Error details:', error.message);
       throw error;
     }
   }
 
   // Login user
-  async login(username, password) {
+  async login(email, password) {
     try {
+      console.log('🔐 Login attempt - Email:', email, 'Password length:', password?.length);
+
       // Kiểm tra database đã sẵn sàng
       const isReady = await databaseService.ensureDatabaseReady();
       if (!isReady) {
         throw new Error('Database not ready');
       }
 
-      // Database chỉ có email, không có username column
-      // Nên chỉ check email - parameter username thực ra là email
+      // Query user by email and password
       const query = `
         SELECT * FROM users 
         WHERE email = ? AND password = ?
       `;
-      const user = await databaseService.db.getFirstAsync(query, [username, password]);
+      const user = await databaseService.db.getFirstAsync(query, [email, password]);
+
+      console.log('🔍 Login query result:', user ? `Found user: ${user.email}` : 'No user found');
 
       if (!user) {
+        // Debug: Check if email exists
+        const emailCheck = await databaseService.db.getFirstAsync(
+          'SELECT email, password FROM users WHERE email = ?',
+          [email]
+        );
+        console.log('🔍 Email exists in DB:', emailCheck ? 'YES' : 'NO');
+        if (emailCheck) {
+          console.log('🔍 Password in DB (first 10 chars):', emailCheck.password?.substring(0, 10));
+          console.log('🔍 Password provided (first 10 chars):', password?.substring(0, 10));
+        }
         throw new Error('Invalid email or password');
       }
 
@@ -109,21 +137,73 @@ class AuthService {
   // Forgot password
   async forgotPassword(email) {
     try {
+      console.log('🔑 Forgot Password - Email:', email);
+
       // Kiểm tra database đã sẵn sàng
       const isReady = await databaseService.ensureDatabaseReady();
       if (!isReady) {
         throw new Error('Database not ready');
       }
 
-      const query = 'SELECT id, username FROM users WHERE email = ?';
+      const query = 'SELECT id, username, email FROM users WHERE email = ?';
       const user = await databaseService.db.getFirstAsync(query, [email]);
 
       if (!user) {
+        console.error('❌ Email not found in database:', email);
         throw new Error('Email not found');
+      }
+
+      console.log('✅ User found:', user.email);
+
+      // Generate OTP (in real app, send via email/SMS)
+      const otp = this.generateOTP();
+
+      // Store OTP temporarily (in real app, store in database with expiration)
+      await AsyncStorage.setItem(`otp_${email}`, otp);
+      await AsyncStorage.setItem(`otp_time_${email}`, Date.now().toString());
+
+      // Log OTP to console for development
+      console.log('========================================');
+      console.log('🔑 FORGOT PASSWORD OTP');
+      console.log('========================================');
+      console.log('📧 Email:', email);
+      console.log('🔢 OTP Code:', otp);
+      console.log('⏰ Valid for: 5 minutes');
+      console.log('========================================');
+
+      return {
+        success: true,
+        message: 'OTP sent to your email',
+        otp: otp // In real app, don't return OTP
+      };
+    } catch (error) {
+      console.error('❌ AuthService - Error in forgot password:', error);
+      throw error;
+    }
+  }
+
+  // Send OTP for registration (doesn't check if email exists)
+  async sendRegistrationOTP(email, username) {
+    try {
+      // Check if email or username already exists
+      const existingUser = await this.checkUserExists(username, email);
+      if (existingUser) {
+        // Check which one exists
+        const emailExists = await databaseService.getUserByEmail(email);
+        if (emailExists) {
+          throw new Error('Email already exists');
+        }
+        throw new Error('Username already exists');
       }
 
       // Generate OTP (in real app, send via email/SMS)
       const otp = this.generateOTP();
+
+      // 📧 FOR TESTING: Log OTP to console
+      console.log('========================================');
+      console.log('📧 OTP CODE FOR:', email);
+      console.log('🔢 OTP:', otp);
+      console.log('========================================');
 
       // Store OTP temporarily (in real app, store in database with expiration)
       await AsyncStorage.setItem(`otp_${email}`, otp);
@@ -135,7 +215,7 @@ class AuthService {
         otp: otp // In real app, don't return OTP
       };
     } catch (error) {
-      console.error('AuthService - Error in forgot password:', error);
+      console.error('AuthService - Error sending registration OTP:', error);
       throw error;
     }
   }
@@ -143,31 +223,44 @@ class AuthService {
   // Verify OTP
   async verifyOTP(email, otp) {
     try {
+      console.log('🔍 Verifying OTP - Email:', email, 'OTP:', otp);
+
       const storedOTP = await AsyncStorage.getItem(`otp_${email}`);
       const otpTime = await AsyncStorage.getItem(`otp_time_${email}`);
 
+      console.log('📦 Stored OTP:', storedOTP);
+      console.log('⏰ OTP Time:', otpTime);
+
       if (!storedOTP || !otpTime) {
+        console.error('❌ OTP not found in storage');
         throw new Error('OTP not found or expired');
       }
 
       // Check if OTP is expired (5 minutes)
       const currentTime = Date.now();
       const otpTimestamp = parseInt(otpTime);
-      if (currentTime - otpTimestamp > 5 * 60 * 1000) {
+      const timeDiff = currentTime - otpTimestamp;
+      console.log('⏱️  Time difference (ms):', timeDiff);
+
+      if (timeDiff > 5 * 60 * 1000) {
+        console.error('❌ OTP expired');
         await AsyncStorage.multiRemove([`otp_${email}`, `otp_time_${email}`]);
         throw new Error('OTP expired');
       }
 
       if (storedOTP !== otp) {
+        console.error('❌ OTP mismatch - Expected:', storedOTP, 'Received:', otp);
         throw new Error('Invalid OTP');
       }
+
+      console.log('✅ OTP verified successfully');
 
       // Clear OTP after successful verification
       await AsyncStorage.multiRemove([`otp_${email}`, `otp_time_${email}`]);
 
       return { success: true };
     } catch (error) {
-      console.error('AuthService - Error verifying OTP:', error);
+      console.error('❌ AuthService - Error verifying OTP:', error);
       throw error;
     }
   }
@@ -175,8 +268,12 @@ class AuthService {
   // Reset password
   async resetPassword(email, newPassword, otp) {
     try {
+      console.log('🔐 Reset Password - Email:', email);
+
       // Verify OTP first
       await this.verifyOTP(email, otp);
+
+      console.log('✅ OTP verified, updating password...');
 
       // Update password
       const query = `
@@ -186,13 +283,18 @@ class AuthService {
       `;
       const result = await databaseService.db.runAsync(query, [newPassword, email]);
 
+      console.log('📝 Password update result - changes:', result.changes);
+
       if (result.changes === 0) {
+        console.error('❌ No rows updated');
         throw new Error('Failed to reset password');
       }
 
+      console.log('✅ Password reset successfully');
+
       return { success: true };
     } catch (error) {
-      console.error('AuthService - Error resetting password:', error);
+      console.error('❌ AuthService - Error resetting password:', error);
       throw error;
     }
   }

@@ -60,13 +60,13 @@ export default function SplashScreen() {
                 {/* Logo/Icon container */}
                 <View style={styles.logoContainer}>
                     <View style={styles.iconWrapper}>
-                        <Text style={styles.iconText}>OCOP</Text>
+                        <Text style={styles.iconText}>CarSupper</Text>
                     </View>
                 </View>
 
                 {/* App Title */}
-                <Text style={styles.title}>OCOP APP</Text>
-                <Text style={styles.subtitle}>One Commune One Product</Text>
+                <Text style={styles.title}>CarSupper APP</Text>
+                <Text style={styles.subtitle}></Text>
 
                 {/* Custom Loading Indicator */}
                 <Animated.View

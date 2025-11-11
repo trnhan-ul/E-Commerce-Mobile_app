@@ -63,7 +63,7 @@ export const fetchFeaturedProducts = createAsyncThunk(
 
 export const fetchNewProducts = createAsyncThunk(
   'products/fetchNewProducts',
-  async (limit = 10, { rejectWithValue, getState }) => {
+  async (limit = 10, { getState }) => {
     try {
       // Kiểm tra xem đã có data chưa để tránh retry liên tục
       const state = getState();

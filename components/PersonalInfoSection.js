@@ -7,7 +7,7 @@ const PersonalInfoSection = ({ profile, onChangePasswordPress }) => (
     <View style={styles.section}>
         <Text style={styles.sectionTitle}>Personal Information</Text>
         {[
-            { icon: 'person-outline', label: 'Full Name', value: profile?.user_name || profile?.full_name || 'N/A' },
+            { icon: 'person-outline', label: 'Full Name', value: profile?.full_name || profile?.username || profile?.user_name || 'N/A' },
             { icon: 'mail-outline', label: 'Email', value: profile?.email || 'N/A' },
         ].map(({ icon, label, value }, index) => (
             <View key={label} style={[styles.infoItem, index === 3 && { borderBottomWidth: 0 }]}>
