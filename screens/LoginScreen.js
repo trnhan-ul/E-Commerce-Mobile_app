@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     StyleSheet,
     Animated,
-    Dimensions,
     ActivityIndicator,
     Alert,
 } from 'react-native';
@@ -16,8 +15,7 @@ import useAuth from '../hooks/useAuth';
 import { useNavigation } from '@react-navigation/native';
 import { handleLoginSuccess } from '../utils/authUtils';
 import Toast from 'react-native-toast-message';
-
-const { height } = Dimensions.get('window');
+import { wp, hp, rf, spacing, borderRadius, fontSizes } from '../utils/responsive';
 
 const LoginScreen = () => {
     const [email, setEmail] = useState('');
@@ -59,7 +57,7 @@ const LoginScreen = () => {
                 text2: 'Đăng nhập thành công!',
                 visibilityTime: 2000,
             });
-            
+
             // Sử dụng utility function để navigate
             handleLoginSuccess(navigation, user);
         }
@@ -193,41 +191,41 @@ const styles = StyleSheet.create({
     circle: {
         position: 'absolute',
         backgroundColor: '#ffffff20',
-        borderRadius: 100,
+        borderRadius: borderRadius.full,
     },
     circle1: {
-        width: 200,
-        height: 200,
-        top: -50,
-        left: -50,
+        width: wp(200),
+        height: wp(200),
+        top: hp(-50),
+        left: wp(-50),
     },
     circle2: {
-        width: 150,
-        height: 150,
-        bottom: -30,
-        right: -30,
+        width: wp(150),
+        height: wp(150),
+        bottom: hp(-30),
+        right: wp(-30),
     },
     circle3: {
-        width: 100,
-        height: 100,
-        top: height / 3,
-        left: -40,
+        width: wp(100),
+        height: wp(100),
+        top: hp(200),
+        left: wp(-40),
     },
     circle4: {
-        width: 120,
-        height: 120,
-        bottom: height / 4,
-        right: -40,
+        width: wp(120),
+        height: wp(120),
+        bottom: hp(150),
+        right: wp(-40),
     },
     loginContainer: {
         flex: 1,
         justifyContent: 'center',
-        paddingHorizontal: 30,
+        paddingHorizontal: spacing.xl,
     },
     card: {
         backgroundColor: '#ffffffcc',
-        borderRadius: 20,
-        padding: 30,
+        borderRadius: borderRadius.xl,
+        padding: spacing.xl,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 5 },
         shadowOpacity: 0.15,
@@ -237,29 +235,29 @@ const styles = StyleSheet.create({
     headerContainer: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        marginBottom: 10,
+        marginBottom: spacing.sm,
     },
     homeButton: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'rgba(19, 194, 194, 0.1)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 20,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        borderRadius: borderRadius.xl,
         borderWidth: 1,
         borderColor: 'rgba(19, 194, 194, 0.3)',
     },
     homeButtonText: {
         color: '#13C2C2',
-        fontSize: 14,
+        fontSize: fontSizes.base,
         fontWeight: '600',
-        marginLeft: 6,
+        marginLeft: spacing.xs,
     },
     title: {
-        fontSize: 28,
+        fontSize: fontSizes.xxxl,
         fontWeight: 'bold',
         color: '#0D364C',
-        marginBottom: 30,
+        marginBottom: spacing.xxl,
         textAlign: 'center',
     },
     inputContainer: {
@@ -267,40 +265,40 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderColor: '#13C2C2',
         borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 5,
-        marginBottom: 20,
+        borderRadius: borderRadius.lg,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: spacing.xs,
+        marginBottom: spacing.lg,
         backgroundColor: '#fff',
-        minHeight: 50,
+        minHeight: hp(50),
     },
     inputField: {
         flex: 1,
-        marginLeft: 10,
-        fontSize: 16,
+        marginLeft: spacing.sm,
+        fontSize: fontSizes.md,
         color: '#000',
-        paddingVertical: 8,
+        paddingVertical: spacing.sm,
     },
     loginButton: {
         backgroundColor: '#13C2C2',
-        paddingVertical: 14,
-        borderRadius: 12,
+        paddingVertical: hp(14),
+        borderRadius: borderRadius.lg,
         alignItems: 'center',
-        marginTop: 10,
+        marginTop: spacing.sm,
     },
     loginButtonText: {
         color: '#fff',
-        fontSize: 16,
+        fontSize: fontSizes.md,
         fontWeight: '600',
     },
     footer: {
-        marginTop: 20,
+        marginTop: spacing.lg,
         flexDirection: 'row',
         justifyContent: 'center',
     },
     footerText: {
         color: '#333',
-        fontSize: 14,
+        fontSize: fontSizes.base,
     },
     footerLink: {
         color: '#13C2C2',
@@ -310,13 +308,13 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     forgotPasswordButton: {
-        marginRight: 10,
+        marginRight: spacing.sm,
         alignItems: 'flex-end',
     },
     forgotPasswordText: {
         color: '#13C2C2',
         fontWeight: '600',
-        fontSize: 14,
+        fontSize: fontSizes.base,
     },
 });
 

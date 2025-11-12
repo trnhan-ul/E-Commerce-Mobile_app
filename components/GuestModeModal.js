@@ -6,11 +6,9 @@ import {
     TouchableOpacity,
     StyleSheet,
     Alert,
-    Dimensions
 } from 'react-native';
 import guestService from '../services/guestService';
-
-const { width, height } = Dimensions.get('window');
+import { wp, hp, spacing, borderRadius, fontSizes } from '../utils/responsive';
 
 const GuestModeModal = ({ visible, onClose, onContinueAsGuest }) => {
     const [guestInfo, setGuestInfo] = useState(null);
@@ -155,13 +153,13 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        padding: spacing.lg
     },
     modal: {
         backgroundColor: 'white',
-        borderRadius: 12,
-        width: width * 0.9,
-        maxHeight: height * 0.8,
+        borderRadius: borderRadius.lg,
+        width: wp(340),
+        maxHeight: hp(650),
         shadowColor: '#000',
         shadowOffset: {
             width: 0,

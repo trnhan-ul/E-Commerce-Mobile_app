@@ -10,6 +10,7 @@ import {
 import { MaterialIcons as Icon } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { useSelector } from "react-redux";
+import { wp, hp, spacing, borderRadius, fontSizes, iconSizes } from "../utils/responsive";
 
 const BottomNavigation = () => {
   const [activeTab, setActiveTab] = useState("Home");
@@ -123,26 +124,26 @@ const styles = StyleSheet.create({
   },
   navigation: {
     flexDirection: "row",
-    height: 64,
+    height: hp(64),
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
+    paddingVertical: spacing.sm,
   },
   disabledTab: {
     opacity: 0.6,
   },
   iconContainer: {
-    width: 24,
-    height: 24,
+    width: iconSizes.lg,
+    height: iconSizes.lg,
     alignItems: "center",
     justifyContent: "center",
   },
   tabLabel: {
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: fontSizes.sm,
+    marginTop: spacing.xs,
     fontWeight: "400",
   },
 });

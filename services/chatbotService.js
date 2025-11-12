@@ -1,8 +1,93 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import databaseService from './databaseService';
 
-const API_KEY = 'AIzaSyCneKUoY3zNSZ5DStp_qYcHW_2D45oH3j4';
+const API_KEY = 'AIzaSyBOb2SIw5_AYiDu-Vy1RahBmTcRDLvJrAo';
 
 const genAI = new GoogleGenerativeAI(API_KEY);
+
+// Function để lấy context từ database
+async function getShopContext() {
+    try {
+        // Đảm bảo database ready
+        await databaseService.ensureDatabaseReady();
+
+        // Lấy tất cả categories (không check is_active nếu cột không tồn tại)
+        const categoriesQuery = 'SELECT id, name, description FROM categories LIMIT 50';
+        const categories = await databaseService.db.getAllAsync(categoriesQuery);
+
+        // Lấy top products (chỉ check stock_quantity)
+        const productsQuery = `
+            SELECT p.id, p.name, p.description, p.price, p.stock_quantity, c.name as category_name
+            FROM products p
+            LEFT JOIN categories c ON p.category_id = c.id
+            WHERE p.stock_quantity > 0
+            ORDER BY p.created_at DESC
+            LIMIT 20
+        `;
+        const products = await databaseService.db.getAllAsync(productsQuery);
+
+        return {
+            categories,
+            products
+        };
+    } catch (error) {
+        console.error('Error getting shop context:', error);
+        return {
+            categories: [],
+            products: []
+        };
+    }
+}
+
+// Function để tạo system prompt với context
+function createSystemPrompt(shopContext) {
+    const { categories, products } = shopContext;
+
+    let prompt = `Bạn là trợ lý AI của cửa hàng bán siêu xe cao cấp. Nhiệm vụ của bạn là tư vấn và hỗ trợ khách hàng về các sản phẩm trong cửa hàng.
+
+**THÔNG TIN CỬA HÀNG:**
+
+**Danh mục sản phẩm có sẵn:**
+`;
+
+    if (categories.length > 0) {
+        categories.forEach(cat => {
+            prompt += `\n- ${cat.name}${cat.description ? `: ${cat.description}` : ''}`;
+        });
+    } else {
+        prompt += '\n(Chưa có danh mục)';
+    }
+
+    prompt += '\n\n**Sản phẩm đang bán:**\n';
+
+    if (products.length > 0) {
+        products.forEach(prod => {
+            prompt += `\n${prod.name}:
+- Danh mục: ${prod.category_name || 'Chưa phân loại'}
+- Giá: ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(prod.price)}
+- Còn hàng: ${prod.stock_quantity} chiếc
+${prod.description ? `- Mô tả: ${prod.description}` : ''}
+`;
+        });
+    } else {
+        prompt += '\n(Chưa có sản phẩm)';
+    }
+
+    prompt += `
+
+**HƯỚNG DẪN TRẢ LỜI:**
+1. Chỉ tư vấn về các sản phẩm có trong danh sách trên
+2. Nếu khách hỏi về sản phẩm không có, hãy gợi ý các sản phẩm tương tự trong cửa hàng
+3. Luôn đề xuất sản phẩm phù hợp với nhu cầu khách hàng
+4. Trả lời ngắn gọn, thân thiện, chuyên nghiệp
+5. Khi khách hỏi giá hoặc chi tiết, cung cấp thông tin chính xác từ danh sách
+6. Nếu hỏi về số lượng còn hàng, trả lời dựa trên stock_quantity
+7. Khuyến khích khách hàng xem chi tiết sản phẩm hoặc thêm vào giỏ hàng
+
+Bây giờ hãy trả lời câu hỏi của khách hàng:`;
+
+    return prompt;
+}
 
 // Function để list các model có sẵn
 export async function listAvailableModels() {
@@ -46,8 +131,12 @@ export async function sendMessageToBotApi(message) {
     try {
         console.log('Sending message to Gemini:', message);
 
+        // Lấy context từ database
+        const shopContext = await getShopContext();
+        const systemPrompt = createSystemPrompt(shopContext);
+
         const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
+            model: 'gemini-2.0-flash',
             generationConfig: {
                 temperature: 0.7,
                 topK: 40,
@@ -56,10 +145,13 @@ export async function sendMessageToBotApi(message) {
             },
         });
 
+        // Gửi message kèm system prompt
+        const fullMessage = `${systemPrompt}\n\nKhách hàng hỏi: ${message}`;
+
         const result = await model.generateContent({
             contents: [{
                 role: 'user',
-                parts: [{ text: message }]
+                parts: [{ text: fullMessage }]
             }]
         });
 
@@ -110,56 +202,42 @@ export async function sendMessageToBotApiRest(message) {
     }
 
     // Danh sách các model và endpoint để thử (theo thứ tự ưu tiên)
-    // Đã cập nhật với các tên model phổ biến nhất
+    // Cập nhật với các model mới nhất có sẵn (dựa trên API response)
     const modelConfigs = [
-        // Gemini 2.0 (mới nhất)
+        // Gemini 2.5 Flash (mới nhất, ổn định)
         {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-2.0-flash-exp (v1beta)'
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`,
+            modelName: 'gemini-2.5-flash (v1beta)'
         },
+        // Gemini 2.0 Flash
         {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-thinking-exp-01-21:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-2.0-flash-thinking-exp (v1beta)'
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${API_KEY}`,
+            modelName: 'gemini-2.0-flash (v1beta)'
         },
-        // Gemini 1.5 với các biến thể
+        // Gemini Flash Latest (alias tự động trỏ đến version mới nhất)
         {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-pro-latest (v1beta)'
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${API_KEY}`,
+            modelName: 'gemini-flash-latest (v1beta)'
         },
+        // Gemini Pro Latest
         {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-flash-latest (v1beta)'
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-latest:generateContent?key=${API_KEY}`,
+            modelName: 'gemini-pro-latest (v1beta)'
         },
+        // Gemini 2.5 Pro
         {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-pro (v1beta)'
-        },
-        {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-flash (v1beta)'
-        },
-        // Gemini 1.0
-        {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro-latest:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.0-pro-latest (v1beta)'
-        },
-        {
-            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.0-pro:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.0-pro (v1beta)'
-        },
-        // V1 API (fallback)
-        {
-            url: `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-latest:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-pro-latest (v1)'
-        },
-        {
-            url: `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`,
-            modelName: 'gemini-1.5-flash-latest (v1)'
+            url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent?key=${API_KEY}`,
+            modelName: 'gemini-2.5-pro (v1beta)'
         },
     ];
 
     let lastError = null;
     let lastErrorData = null;
+
+    // Lấy context từ database
+    const shopContext = await getShopContext();
+    const systemPrompt = createSystemPrompt(shopContext);
+    const fullMessage = `${systemPrompt}\n\nKhách hàng hỏi: ${message}`;
 
     for (const config of modelConfigs) {
         try {
@@ -173,7 +251,7 @@ export async function sendMessageToBotApiRest(message) {
                 body: JSON.stringify({
                     contents: [{
                         parts: [{
-                            text: message.trim()
+                            text: fullMessage.trim()
                         }]
                     }],
                     generationConfig: {

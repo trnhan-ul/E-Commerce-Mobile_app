@@ -5,14 +5,12 @@ import {
     TouchableOpacity,
     StyleSheet,
     Modal,
-    Dimensions,
 } from 'react-native';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { COLORS } from '../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const { width, height } = Dimensions.get('window');
+import { wp, hp, spacing, borderRadius, fontSizes } from '../utils/responsive';
 
 const AuthRequiredModal = ({ visible, onClose, title, message, actionText = 'Đăng nhập' }) => {
     const navigation = useNavigation();
@@ -88,9 +86,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     modalContainer: {
-        width: width * 0.85,
+        width: wp(320),
         backgroundColor: COLORS.white,
-        borderRadius: 20,
+        borderRadius: borderRadius.xl,
         overflow: 'hidden',
         elevation: 10,
         shadowColor: COLORS.shadow?.dark || '#000',
@@ -99,7 +97,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
     },
     header: {
-        padding: 30,
+        padding: spacing.xxl,
         alignItems: 'center',
     },
     title: {

@@ -7,7 +7,6 @@ import {
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
-    Dimensions,
     TextInput,
     Modal,
     Alert,
@@ -20,8 +19,7 @@ import { InlineLoading, FooterLoading } from '../components/Loading';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 import { LinearGradient } from 'expo-linear-gradient';
-
-const { width, height } = Dimensions.get('window');
+import { wp, hp, rf, spacing, borderRadius, fontSizes, isSmallDevice } from '../utils/responsive';
 
 const AllProductsScreen = ({ navigation, route }) => {
     const dispatch = useDispatch();
@@ -422,9 +420,9 @@ const styles = StyleSheet.create({
         zIndex: 1000,
     },
     header: {
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        paddingTop: StatusBar.currentHeight + 20,
+        paddingHorizontal: spacing.lg,
+        paddingVertical: spacing.lg,
+        paddingTop: StatusBar.currentHeight + spacing.lg,
         overflow: 'hidden',
         position: 'relative',
     },
@@ -435,14 +433,14 @@ const styles = StyleSheet.create({
         zIndex: 2,
     },
     backButton: {
-        padding: 4,
+        padding: spacing.xs,
     },
     backButtonInner: {
-        width: 44,
-        height: 44,
+        width: wp(44),
+        height: wp(44),
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 22,
+        borderRadius: borderRadius.full,
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -450,30 +448,30 @@ const styles = StyleSheet.create({
     headerTitleContainer: {
         flex: 1,
         alignItems: 'center',
-        marginHorizontal: 20,
+        marginHorizontal: spacing.lg,
     },
     headerTitle: {
-        fontSize: 22,
+        fontSize: fontSizes.xl,
         fontWeight: '700',
         color: '#FFFFFF',
         textAlign: 'center',
         letterSpacing: 0.5,
     },
     headerSubtitle: {
-        fontSize: 14,
+        fontSize: fontSizes.base,
         color: 'rgba(255, 255, 255, 0.8)',
-        marginTop: 2,
+        marginTop: spacing.xs,
         fontWeight: '500',
     },
     searchButton: {
-        padding: 4,
+        padding: spacing.xs,
     },
     searchButtonInner: {
-        width: 44,
-        height: 44,
+        width: wp(44),
+        height: wp(44),
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 22,
+        borderRadius: borderRadius.full,
         backgroundColor: 'rgba(255, 255, 255, 0.2)',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.3)',
@@ -482,27 +480,27 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: -30,
         right: -30,
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: wp(100),
+        height: wp(100),
+        borderRadius: borderRadius.full,
         backgroundColor: 'rgba(255, 255, 255, 0.1)',
     },
     decorativeCircle2: {
         position: 'absolute',
         bottom: -20,
         left: -40,
-        width: 80,
-        height: 80,
-        borderRadius: 40,
+        width: wp(80),
+        height: wp(80),
+        borderRadius: borderRadius.full,
         backgroundColor: 'rgba(255, 255, 255, 0.08)',
     },
     decorativeCircle3: {
         position: 'absolute',
         top: 20,
-        left: width * 0.7,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        left: wp(260),
+        width: wp(60),
+        height: wp(60),
+        borderRadius: borderRadius.full,
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
     },
     content: {

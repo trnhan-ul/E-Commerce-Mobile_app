@@ -261,12 +261,12 @@ export const supercarShopSampleData = {
         }
     ],
 
-    // Users (passwords are SHA-256 hashed)
+    // Users (passwords are in plain text)
     users: [
         {
             email: 'admin@shopapp.com',
             username: 'admin',
-            password: '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', // admin123 hashed
+            password: '123456', // Plain text password
             full_name: 'Admin User',
             phone: '0123456789',
             role: 'admin'
@@ -274,7 +274,7 @@ export const supercarShopSampleData = {
         {
             email: 'user@shopapp.com',
             username: 'user',
-            password: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918', // user123 hashed
+            password: '123456', // Plain text password
             full_name: 'Test User',
             phone: '0987654321',
             role: 'user'
@@ -285,6 +285,9 @@ export const supercarShopSampleData = {
 // Function để import sample data vào database
 export const importSupercarShopData = async (databaseService) => {
     try {
+        // Import Crypto for password hashing
+        const Crypto = require('expo-crypto');
+
         // Import categories
         for (const category of supercarShopSampleData.categories) {
             await databaseService.addCategory(category);
@@ -295,9 +298,21 @@ export const importSupercarShopData = async (databaseService) => {
             await databaseService.addProduct(product);
         }
 
-        // Import users (if needed)
+        // Import users with hashed passwords
         for (const user of supercarShopSampleData.users) {
-            await databaseService.createUser(user);
+            // Hash password before storing
+            const hashedPassword = await Crypto.digestStringAsync(
+                Crypto.CryptoDigestAlgorithm.SHA256,
+                user.password
+            );
+
+            const userWithHashedPassword = {
+                ...user,
+                password: hashedPassword
+            };
+
+            console.log(`🔐 Creating user ${user.email} with hashed password`);
+            await databaseService.createUser(userWithHashedPassword);
         }
 
         console.log('✅ Sample data imported successfully!');

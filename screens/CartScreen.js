@@ -29,6 +29,21 @@ import Toast from "react-native-toast-message";
 const CartScreen = ({ navigation }) => {
   const dispatch = useDispatch();
   const { cart, isLoading, error } = useSelector((state) => state.cart);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  // Check authentication
+  useEffect(() => {
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Yêu cầu đăng nhập",
+        "Bạn cần đăng nhập để xem giỏ hàng.",
+        [
+          { text: "Đóng", style: "cancel", onPress: () => navigation.navigate("HomePage") },
+          { text: "Đăng nhập", onPress: () => navigation.navigate("Login") },
+        ]
+      );
+    }
+  }, [isAuthenticated, navigation]);
 
   // Transform cart data to match UI expectations
   const [cartItems, setCartItems] = useState([]);
@@ -38,11 +53,14 @@ const CartScreen = ({ navigation }) => {
   const [selectAll, setSelectAll] = useState(false); // Track select all state
 
   useEffect(() => {
-    dispatch(fetchCartByUser());
-  }, [dispatch]);
+    if (isAuthenticated) {
+      dispatch(fetchCartByUser());
+    }
+  }, [dispatch, isAuthenticated]);
 
   useEffect(() => {
     if (cart && cart.items) {
+      console.log('🛒 CartScreen - Updating cartItems from Redux:', cart.items.length, 'items');
       const transformedItems = cart.items.map((item) => ({
         id: item.id || item.cart_id, // Use cart item ID (unique per cart item)
         product_id: item.product_id, // Keep product_id separate
@@ -57,6 +75,7 @@ const CartScreen = ({ navigation }) => {
         status: item.status,
       }));
       setCartItems(transformedItems);
+      console.log('✅ CartScreen - cartItems updated:', transformedItems.length, 'items');
 
       // Chỉ auto select những items có thể mua được
       const availableItems = transformedItems.filter(
@@ -122,14 +141,26 @@ const CartScreen = ({ navigation }) => {
           })
         ).unwrap();
       } catch (error) {
-        // Nếu lỗi liên quan kho hàng, show toast
+        // Show friendly error message
+        const errorMessage = error?.message || error?.toString() || "Có lỗi xảy ra khi cập nhật số lượng";
+
         Toast.show({
           type: "error",
           text1: "Không thể cập nhật",
-          text2: error?.toString() || "Có lỗi xảy ra khi cập nhật số lượng",
+          text2: errorMessage,
           position: "top",
-          visibilityTime: 2500,
+          visibilityTime: 3500,
+          topOffset: 60,
         });
+
+        // Also show Alert for important errors
+        if (errorMessage.includes("giới hạn")) {
+          Alert.alert(
+            "Không thể cập nhật",
+            errorMessage,
+            [{ text: "Đóng", style: "cancel" }]
+          );
+        }
       } finally {
         setIsUpdating((prev) => {
           const newState = { ...prev };
@@ -262,13 +293,26 @@ const CartScreen = ({ navigation }) => {
         return newState;
       });
     } catch (error) {
+      const errorMessage = error?.message || error?.toString() || "Có lỗi xảy ra khi cập nhật số lượng";
+
       Toast.show({
         type: "error",
         text1: "Không thể cập nhật",
-        text2: error?.toString() || "Có lỗi xảy ra khi cập nhật số lượng",
+        text2: errorMessage,
         position: "top",
-        visibilityTime: 2500,
+        visibilityTime: 3500,
+        topOffset: 60,
       });
+
+      // Show Alert for limit errors
+      if (errorMessage.includes("giới hạn")) {
+        Alert.alert(
+          "Không thể cập nhật",
+          errorMessage,
+          [{ text: "Đóng", style: "cancel" }]
+        );
+      }
+
       setEditingQuantity((prev) => {
         const newState = { ...prev };
         delete newState[cart_item_id];
@@ -312,26 +356,30 @@ const CartScreen = ({ navigation }) => {
 
   // Updated removeItem function to use the proper removeCartItem Redux action
   const removeItem = async (product_id) => {
+    console.log('🗑️ Removing item:', product_id);
     setIsUpdating((prev) => ({ ...prev, [product_id]: true }));
 
     try {
       await dispatch(removeCartItem(product_id)).unwrap();
+      console.log('✅ Item removed successfully');
 
       // Remove from selected items if it was selected
       setSelectedItems((prev) => prev.filter((id) => id !== product_id));
 
       // Show success message
-      Alert.alert(
-        "Thành công",
-        "Đã xóa sản phẩm khỏi giỏ hàng thành công",
-        [{ text: "OK" }],
-        { cancelable: true }
-      );
+      Toast.show({
+        type: "success",
+        text1: "Thành công",
+        text2: "Đã xóa sản phẩm khỏi giỏ hàng",
+        position: "top",
+        visibilityTime: 2000,
+        topOffset: 60,
+      });
     } catch (error) {
-      console.error("Remove failed:", error);
+      console.error("❌ Remove failed:", error);
       Alert.alert(
         "Xóa thất bại",
-        error || "Không thể xóa sản phẩm khỏi giỏ hàng",
+        error?.message || "Không thể xóa sản phẩm khỏi giỏ hàng",
         [{ text: "OK" }]
       );
     } finally {
@@ -500,6 +548,11 @@ const CartScreen = ({ navigation }) => {
     });
   };
 
+  // Early return if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
+
   const CartItem = React.memo(({ item }) => {
     const itemIsUpdating = isUpdating[item.id];
     const isSelected = selectedItems.includes(item.id);
@@ -573,7 +626,7 @@ const CartScreen = ({ navigation }) => {
               )}
             </View>
             <TouchableOpacity
-              onPress={() => showRemoveConfirmation(item.id)}
+              onPress={() => showRemoveConfirmation(item.product_id)}
               disabled={itemIsUpdating}
               style={styles.deleteButton}
             >

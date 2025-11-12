@@ -1,5 +1,6 @@
 import databaseService from './databaseService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import authService from './authService';
 
 class UserService {
   // Get user profile
@@ -53,22 +54,13 @@ class UserService {
         throw new Error('Database not ready');
       }
 
-      const userId = await this.getCurrentUserId();
-      if (!userId) throw new Error('User not logged in');
+      console.log('🔐 UserService - changePassword called');
 
-      // Get current user to verify current password
-      const user = await databaseService.getUserById(userId);
-      if (!user) throw new Error('User not found');
+      // Use authService.changePassword which handles hashing
+      const result = await authService.changePassword(currentPassword, newPassword);
 
-      // In a real app, you would hash and compare passwords
-      // For now, we'll just update the password
-      const query = `
-        UPDATE users 
-        SET password = ?, updated_at = CURRENT_TIMESTAMP 
-        WHERE id = ?
-      `;
-      const result = await databaseService.db.runAsync(query, [newPassword, userId]);
-      return result.changes > 0;
+      console.log('✅ UserService - Password changed successfully');
+      return result;
     } catch (error) {
       console.error('UserService - Error changing password:', error);
       throw error;

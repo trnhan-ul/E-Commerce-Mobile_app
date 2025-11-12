@@ -86,6 +86,9 @@ export default function AppNavigator() {
         <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="ForgotPasswordOTP" component={ForgotPasswordOTPScreen} />
 
+        {/* Cart - Always register but will handle auth inside */}
+        <Stack.Screen name="Cart" component={CartScreen} />
+
         {/* Protected routes - Chỉ user đã đăng nhập mới xem được */}
         {isAuthenticated && (
           <>
@@ -104,7 +107,6 @@ export default function AppNavigator() {
             ) : (
               <>
                 {/* User có thể truy cập tất cả screens */}
-                <Stack.Screen name="Cart" component={CartScreen} />
                 <Stack.Screen name="Profile" component={ProfileScreen} />
                 <Stack.Screen name="Payment" component={PaymentScreen} />
                 <Stack.Screen name="OrderHistory" component={OrderHistoryScreen} />

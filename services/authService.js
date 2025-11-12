@@ -72,7 +72,7 @@ class AuthService {
 
       // Hash the password before comparing
       const hashedPassword = await this.hashPassword(password);
-      console.log('🔐 Password hashed for comparison');
+      console.log('🔐 Password hashed for comparison:', hashedPassword);
 
       // Kiểm tra database đã sẵn sàng
       const isReady = await databaseService.ensureDatabaseReady();
@@ -337,20 +337,25 @@ class AuthService {
       if (!userData) throw new Error('User not logged in');
 
       const user = JSON.parse(userData);
+      console.log('🔐 Change Password - User ID:', user.id);
 
       // Hash current password for verification
       const hashedCurrentPassword = await this.hashPassword(currentPassword);
+      console.log('🔐 Current password hashed:', hashedCurrentPassword);
 
       // Verify current password
-      const query = 'SELECT id FROM users WHERE id = ? AND password = ?';
-      const result = await databaseService.db.getFirstAsync(query, [user.id, hashedCurrentPassword]);
+      const query = 'SELECT id, password FROM users WHERE id = ?';
+      const dbUser = await databaseService.db.getFirstAsync(query, [user.id]);
+      console.log('🔍 Password in DB:', dbUser?.password);
+      console.log('🔍 Passwords match:', dbUser?.password === hashedCurrentPassword);
 
-      if (!result) {
+      if (!dbUser || dbUser.password !== hashedCurrentPassword) {
         throw new Error('Current password is incorrect');
       }
 
       // Hash new password
       const hashedNewPassword = await this.hashPassword(newPassword);
+      console.log('🔐 New password hashed:', hashedNewPassword);
 
       // Update password
       const updateQuery = `
@@ -359,6 +364,7 @@ class AuthService {
         WHERE id = ?
       `;
       const updateResult = await databaseService.db.runAsync(updateQuery, [hashedNewPassword, user.id]);
+      console.log('✅ Password changed successfully');
 
       return updateResult.changes > 0;
     } catch (error) {

@@ -8,7 +8,6 @@ import {
     KeyboardAvoidingView,
     Platform,
     Alert,
-    Dimensions,
 } from "react-native";
 import { useDispatch, useSelector } from "react-redux";
 import {
@@ -17,6 +16,7 @@ import {
     clearChat,
     clearError,
 } from "../store/slices/chatbotSlice";
+import { wp, hp, rf, spacing, borderRadius, fontSizes, SCREEN_HEIGHT } from "../utils/responsive";
 
 const ChatBotModal = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -29,8 +29,7 @@ const ChatBotModal = () => {
     const error = useSelector((state) => state.chatBot.error);
 
     // Lấy kích thước màn hình để tính toán layout
-    const { height: screenHeight } = Dimensions.get('window');
-    const maxChatHeight = screenHeight * 0.7; // Giới hạn chiều cao chat tối đa 70% màn hình
+    const maxChatHeight = SCREEN_HEIGHT * 0.7; // Giới hạn chiều cao chat tối đa 70% màn hình
 
     const sendMessage = async () => {
         if (!input.trim()) return;
@@ -272,27 +271,35 @@ const ChatBotModal = () => {
                         <View
                             style={{
                                 paddingHorizontal: 15,
-                                paddingBottom: 5,
-                                flexDirection: "row",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                                flexShrink: 0, // Không co lại
+                                paddingVertical: 8,
+                                backgroundColor: "#fee2e2",
+                                borderRadius: 8,
+                                margin: 10,
+                                flexShrink: 0,
                             }}
                         >
-                            <Text style={{ color: "#dc2626", fontSize: 12, flex: 1 }}>
-                                {error}
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
+                                <Text style={{ fontSize: 16, marginRight: 5 }}>❌</Text>
+                                <Text style={{ color: "#dc2626", fontSize: 12, flex: 1, lineHeight: 18 }}>
+                                    {error.includes('API key') || error.includes('model')
+                                        ? 'Lỗi cấu hình Gemini API. Vui lòng kiểm tra API key và thử lại.'
+                                        : error}
+                                </Text>
+                            </View>
                             <TouchableOpacity
                                 onPress={handleRetry}
                                 style={{
                                     backgroundColor: "#dc2626",
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 4,
-                                    borderRadius: 4,
-                                    marginLeft: 8
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 6,
+                                    borderRadius: 6,
+                                    marginTop: 8,
+                                    alignSelf: "flex-start",
                                 }}
                             >
-                                <Text style={{ color: "white", fontSize: 10 }}>Thử lại</Text>
+                                <Text style={{ color: "white", fontSize: 12, fontWeight: "600" }}>
+                                    🔄 Thử lại
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     )}
