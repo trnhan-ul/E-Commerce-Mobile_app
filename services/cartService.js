@@ -16,8 +16,8 @@ class CartService {
         `📦 Adding to cart - Product: ${product.name}, Stock: ${product.stock_quantity}, Requested: ${quantity}`
       );
 
-      // Business Rule: Maximum 2 units per supercar product
-      const MAX_QUANTITY_PER_PRODUCT = 2;
+      // Business Rule: Maximum 2 total units across all products
+      const MAX_TOTAL_QUANTITY = 2;
 
       if (product.stock_quantity < quantity) {
         console.error(
@@ -26,46 +26,64 @@ class CartService {
         throw new Error(`Sản phẩm chỉ còn ${product.stock_quantity} trong kho`);
       }
 
+      // Get current cart to check total quantity
+      const currentCartItems = await this.getCartItems();
+      const currentTotalQuantity = currentCartItems.reduce((sum, item) => sum + item.quantity, 0);
+
+      console.log(`🛒 Current total quantity in cart: ${currentTotalQuantity}, Max allowed: ${MAX_TOTAL_QUANTITY}`);
+
       // Check if item already exists in cart
       const existingItem = await this.getCartItem(productId);
 
       if (existingItem) {
-        // Update quantity
+        // Update quantity of existing item
         const newQuantity = existingItem.quantity + quantity;
+        const newTotalQuantity = currentTotalQuantity + quantity;
+
         console.log(
-          `📝 Updating cart - Current: ${existingItem.quantity}, Adding: ${quantity}, New total: ${newQuantity}`
+          `📝 Updating cart - Current item qty: ${existingItem.quantity}, Adding: ${quantity}, New item qty: ${newQuantity}, New total: ${newTotalQuantity}`
         );
 
-        // Check max quantity limit first
-        if (newQuantity > MAX_QUANTITY_PER_PRODUCT) {
+        // Check if new total exceeds limit
+        if (newTotalQuantity > MAX_TOTAL_QUANTITY) {
+          const remainingSlots = MAX_TOTAL_QUANTITY - currentTotalQuantity;
           console.error(
-            `❌ Exceeds maximum quantity - Requested: ${newQuantity}, Max allowed: ${MAX_QUANTITY_PER_PRODUCT}`
+            `❌ Total quantity exceeds limit - New total: ${newTotalQuantity}, Max: ${MAX_TOTAL_QUANTITY}, Remaining: ${remainingSlots}`
           );
           throw new Error(
-            `Đây là sản phẩm siêu xe cao cấp. Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm.`
+            remainingSlots > 0
+              ? `Bạn chỉ có thể mua tối đa ${MAX_TOTAL_QUANTITY} sản phẩm. Bạn có thể thêm tối đa ${remainingSlots} sản phẩm nữa.`
+              : `Bạn đã đạt giới hạn ${MAX_TOTAL_QUANTITY} sản phẩm. Vui lòng giảm số lượng sản phẩm khác nếu muốn thêm.`
           );
         }
 
         if (newQuantity > product.stock_quantity) {
           console.error(
-            `❌ Total quantity exceeds stock - New total: ${newQuantity}, Stock: ${product.stock_quantity}`
+            `❌ Item quantity exceeds stock - New qty: ${newQuantity}, Stock: ${product.stock_quantity}`
           );
           throw new Error(
-            `Chỉ có thể thêm tối đa ${
-              product.stock_quantity - existingItem.quantity
+            `Chỉ có thể thêm tối đa ${product.stock_quantity - existingItem.quantity
             } sản phẩm nữa`
           );
         }
 
         return await this.updateCartItem(productId, newQuantity);
       } else {
-        // Add new item - check max quantity for initial add
-        if (quantity > MAX_QUANTITY_PER_PRODUCT) {
+        // Adding new product
+        const newTotalQuantity = currentTotalQuantity + quantity;
+
+        console.log(`➕ Adding new product - Quantity: ${quantity}, New total: ${newTotalQuantity}`);
+
+        // Check if new total exceeds limit
+        if (newTotalQuantity > MAX_TOTAL_QUANTITY) {
+          const remainingSlots = MAX_TOTAL_QUANTITY - currentTotalQuantity;
           console.error(
-            `❌ Exceeds maximum quantity - Requested: ${quantity}, Max allowed: ${MAX_QUANTITY_PER_PRODUCT}`
+            `❌ Total quantity exceeds limit - New total: ${newTotalQuantity}, Max: ${MAX_TOTAL_QUANTITY}, Remaining: ${remainingSlots}`
           );
           throw new Error(
-            `Đây là sản phẩm siêu xe cao cấp. Bạn chỉ có thể mua tối đa ${MAX_QUANTITY_PER_PRODUCT} chiếc cho mỗi sản phẩm.`
+            remainingSlots > 0
+              ? `Bạn chỉ có thể mua tối đa ${MAX_TOTAL_QUANTITY} sản phẩm. Bạn có thể thêm tối đa ${remainingSlots} sản phẩm nữa.`
+              : `Bạn đã đạt giới hạn ${MAX_TOTAL_QUANTITY} sản phẩm. Vui lòng giảm số lượng sản phẩm khác nếu muốn thêm.`
           );
         }
 
@@ -114,12 +132,45 @@ class CartService {
         return await this.removeFromCart(productId);
       }
 
+      // Business Rule: Maximum 2 total units across all products
+      const MAX_TOTAL_QUANTITY = 2;
+
       // Check product stock
       const product = await databaseService.getProductById(productId);
       if (!product) throw new Error('Product not found');
 
       if (product.stock_quantity < quantity) {
-        throw new Error('Insufficient stock');
+        throw new Error(`Sản phẩm chỉ còn ${product.stock_quantity} trong kho`);
+      }
+
+      // Get current cart to check total quantity
+      const currentCartItems = await this.getCartItems();
+      const currentItem = currentCartItems.find(item => item.product_id === productId);
+
+      if (!currentItem) {
+        throw new Error('Sản phẩm không có trong giỏ hàng');
+      }
+
+      // Calculate new total (excluding current item, then add new quantity)
+      const otherItemsTotal = currentCartItems
+        .filter(item => item.product_id !== productId)
+        .reduce((sum, item) => sum + item.quantity, 0);
+
+      const newTotalQuantity = otherItemsTotal + quantity;
+
+      console.log(`📝 Update cart - Current qty: ${currentItem.quantity}, New qty: ${quantity}, Other items: ${otherItemsTotal}, New total: ${newTotalQuantity}`);
+
+      // Check if new total exceeds limit
+      if (newTotalQuantity > MAX_TOTAL_QUANTITY) {
+        const remainingSlots = MAX_TOTAL_QUANTITY - otherItemsTotal;
+        console.error(
+          `❌ Total quantity exceeds limit - New total: ${newTotalQuantity}, Max: ${MAX_TOTAL_QUANTITY}, Remaining: ${remainingSlots}`
+        );
+        throw new Error(
+          remainingSlots > 0
+            ? `Bạn chỉ có thể mua tối đa ${MAX_TOTAL_QUANTITY} sản phẩm. Bạn có thể tăng tối đa ${remainingSlots} sản phẩm nữa.`
+            : `Bạn đã đạt giới hạn ${MAX_TOTAL_QUANTITY} sản phẩm. Vui lòng giảm số lượng sản phẩm khác nếu muốn tăng.`
+        );
       }
 
       const query = `
@@ -128,6 +179,8 @@ class CartService {
         WHERE user_id = ? AND product_id = ?
       `;
       const result = await databaseService.db.runAsync(query, [quantity, userId, productId]);
+
+      console.log(`✅ Cart item updated successfully`);
       return result.changes > 0;
     } catch (error) {
       console.error('CartService - Error updating cart item:', error);

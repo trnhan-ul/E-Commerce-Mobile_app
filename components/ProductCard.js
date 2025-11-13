@@ -9,37 +9,38 @@ import { addToCart } from '../store/slices/cartSlice';
 import { selectProductReviews } from '../store/slices/reviewSlice';
 import { formatCurrency } from '../utils/formatCurrency';
 import Toast from 'react-native-toast-message';
+import { wp, hp, rf, spacing, borderRadius, fontSizes, iconSizes } from '../utils/responsive';
 
 const truncateText = (text, maxLength) => {
-    if (text.length <= maxLength) return text;
-    return text.substring(0, maxLength) + '...';
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + '...';
 };
 
 const renderStars = (rating) => {
-    const stars = [];
-    const fullStars = Math.floor(rating);
-    const hasHalfStar = rating % 1 !== 0;
+  const stars = [];
+  const fullStars = Math.floor(rating);
+  const hasHalfStar = rating % 1 !== 0;
 
-    for (let i = 0; i < fullStars; i++) {
-        stars.push(
-            <Icon key={i} name="star" size={16} color="#FFD700" />
-        );
-    }
+  for (let i = 0; i < fullStars; i++) {
+    stars.push(
+      <Icon key={i} name="star" size={16} color="#FFD700" />
+    );
+  }
 
-    if (hasHalfStar) {
-        stars.push(
-            <Icon key="half" name="star-half" size={16} color="#FFD700" />
-        );
-    }
+  if (hasHalfStar) {
+    stars.push(
+      <Icon key="half" name="star-half" size={16} color="#FFD700" />
+    );
+  }
 
-    const emptyStars = 5 - Math.ceil(rating);
-    for (let i = 0; i < emptyStars; i++) {
-        stars.push(
-            <Icon key={`empty-${i}`} name="star-border" size={16} color="#FFD700" />
-        );
-    }
+  const emptyStars = 5 - Math.ceil(rating);
+  for (let i = 0; i < emptyStars; i++) {
+    stars.push(
+      <Icon key={`empty-${i}`} name="star-border" size={16} color="#FFD700" />
+    );
+  }
 
-    return stars;
+  return stars;
 };
 
 const ProductCard = ({ product }) => {
@@ -66,7 +67,7 @@ const ProductCard = ({ product }) => {
   const averageRating =
     productReviews && productReviews.length > 0
       ? productReviews.reduce((acc, review) => acc + review.rating, 0) /
-        productReviews.length
+      productReviews.length
       : 0;
 
   // Check if product is out of stock
@@ -203,16 +204,14 @@ const ProductCard = ({ product }) => {
                   style={[
                     styles.stockText,
                     (product.quantity || product.stock_quantity || 0) <= 5 &&
-                      styles.stockTextLow,
+                    styles.stockTextLow,
                   ]}
                 >
                   {(product.quantity || product.stock_quantity || 0) <= 5
-                    ? `Chỉ còn ${
-                        product.quantity || product.stock_quantity || 0
-                      }`
-                    : `Còn hàng (${
-                        product.quantity || product.stock_quantity || 0
-                      })`}
+                    ? `Chỉ còn ${product.quantity || product.stock_quantity || 0
+                    }`
+                    : `Còn hàng (${product.quantity || product.stock_quantity || 0
+                    })`}
                 </Text>
               </View>
             )}
@@ -245,8 +244,8 @@ const ProductCard = ({ product }) => {
 
 const styles = StyleSheet.create({
   container: {
-    height: 280,
-    borderRadius: 20,
+    height: hp(280),
+    borderRadius: borderRadius.xl,
     elevation: 5,
     shadowColor: COLORS.shadow.dark,
     shadowOffset: { width: 0, height: 2 },
@@ -256,11 +255,11 @@ const styles = StyleSheet.create({
   },
   card: {
     flex: 1,
-    borderRadius: 20,
+    borderRadius: borderRadius.xl,
     overflow: "hidden",
   },
   imageContainer: {
-    height: 160,
+    height: hp(160),
     width: "100%",
     position: "relative",
   },
@@ -280,31 +279,31 @@ const styles = StyleSheet.create({
   },
   outOfStockText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: fontSizes.md,
     fontWeight: "700",
     backgroundColor: "#ff4757",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.lg,
   },
   infoContainer: {
-    padding: 12,
+    padding: spacing.sm,
   },
   name: {
-    fontSize: 14,
+    fontSize: fontSizes.base,
     fontWeight: "600",
     color: COLORS.text.primary,
-    marginBottom: 6,
-    height: 40,
+    marginBottom: spacing.xs,
+    height: hp(40),
   },
   ratingContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 6,
+    marginBottom: spacing.xs,
   },
   ratingText: {
-    marginLeft: 4,
-    fontSize: 12,
+    marginLeft: spacing.xs,
+    fontSize: fontSizes.sm,
     color: COLORS.text.secondary,
     fontWeight: "500",
   },
@@ -312,10 +311,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 4,
+    marginBottom: spacing.xs,
   },
   price: {
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     fontWeight: "700",
     color: COLORS.primary,
     flex: 1,

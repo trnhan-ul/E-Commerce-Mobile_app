@@ -1,10 +1,13 @@
 import * as SQLite from 'expo-sqlite';
+import * as FileSystem from 'expo-file-system';
 
 class DatabaseService {
     constructor() {
         this.db = null;
         this.isInitialized = false;
         this.initPromise = null; // Để tránh khởi tạo nhiều lần
+        // ⚠️ BẬT FLAG NÀY ĐỂ XÓA DATABASE MỖI LẦN CHẠY (CHỈ DÙNG KHI DEVELOPMENT)
+        this.RESET_DATABASE_ON_START = false; // Đổi thành false khi production
     }
 
     // Khởi tạo database
@@ -32,6 +35,11 @@ class DatabaseService {
 
     async _initDatabase() {
         try {
+            // ⚠️ XÓA DATABASE CŨ NẾU FLAG BẬT (CHỈ DÙNG KHI DEVELOPMENT)
+            if (this.RESET_DATABASE_ON_START) {
+                await this.resetDatabase();
+            }
+
             // Đảm bảo database được mở thành công
             if (!this.db) {
                 this.db = await SQLite.openDatabaseAsync('shopapp.db');
@@ -62,6 +70,55 @@ class DatabaseService {
             this.isInitialized = false;
             this.db = null;
             throw error;
+        }
+    }
+
+    // Method để reset database (xóa tất cả dữ liệu)
+    async resetDatabase() {
+        try {
+            console.log('🗑️ Resetting database...');
+
+            // Đóng database hiện tại nếu đang mở
+            if (this.db) {
+                try {
+                    await this.db.closeAsync();
+                    console.log('✅ Database connection closed');
+                } catch (error) {
+                    console.warn('⚠️  Warning closing database:', error);
+                }
+                this.db = null;
+            }
+
+            // Wait a bit for database to fully close
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            // Xóa file database
+            const dbPath = `${FileSystem.documentDirectory}SQLite/shopapp.db`;
+            const fileInfo = await FileSystem.getInfoAsync(dbPath);
+
+            if (fileInfo.exists) {
+                try {
+                    await FileSystem.deleteAsync(dbPath, { idempotent: true });
+                    console.log('✅ Database file deleted successfully');
+                } catch (deleteError) {
+                    console.error('❌ Error deleting database file:', deleteError);
+                    // Try to delete with force
+                    try {
+                        await FileSystem.deleteAsync(dbPath);
+                        console.log('✅ Database file force deleted');
+                    } catch (forceError) {
+                        console.error('❌ Cannot delete database file, will recreate:', forceError);
+                    }
+                }
+            } else {
+                console.log('ℹ️  Database file does not exist, nothing to delete');
+            }
+
+            this.isInitialized = false;
+            console.log('✅ Database reset completed');
+        } catch (error) {
+            console.error('Error resetting database:', error);
+            // Không throw error ở đây, vì có thể file không tồn tại
         }
     }
 
@@ -768,71 +825,71 @@ class DatabaseService {
     // Tạo đơn hàng mới
     async createOrder(userId, cartItems, totalAmount, shippingAddress, paymentMethod, notes = '') {
         try {
-          if (!this.db) {
-            throw new Error("Database not initialized");
-          }
-
-          let orderId;
-
-          // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
-          await this.db.withExclusiveTransactionAsync(async () => {
-            // BƯỚC 1: Kiểm tra stock cho tất cả sản phẩm TRƯỚC KHI tạo order
-            for (const item of cartItems) {
-              const product = await this.db.getFirstAsync(
-                "SELECT id, name, stock_quantity FROM products WHERE id = ?",
-                [item.product_id]
-              );
-
-              if (!product) {
-                throw new Error(
-                  `Sản phẩm không tồn tại (ID: ${item.product_id})`
-                );
-              }
-
-              if (product.stock_quantity < item.quantity) {
-                throw new Error(
-                  `Sản phẩm "${product.name}" không đủ hàng. Còn lại: ${product.stock_quantity}, yêu cầu: ${item.quantity}`
-                );
-              }
+            if (!this.db) {
+                throw new Error("Database not initialized");
             }
 
-            // BƯỚC 2: Tạo đơn hàng
-            const orderResult = await this.db.runAsync(
-              "INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)",
-              [userId, totalAmount, shippingAddress, paymentMethod, notes]
+            let orderId;
+
+            // Sử dụng transaction để đảm bảo tính toàn vẹn dữ liệu
+            await this.db.withExclusiveTransactionAsync(async () => {
+                // BƯỚC 1: Kiểm tra stock cho tất cả sản phẩm TRƯỚC KHI tạo order
+                for (const item of cartItems) {
+                    const product = await this.db.getFirstAsync(
+                        "SELECT id, name, stock_quantity FROM products WHERE id = ?",
+                        [item.product_id]
+                    );
+
+                    if (!product) {
+                        throw new Error(
+                            `Sản phẩm không tồn tại (ID: ${item.product_id})`
+                        );
+                    }
+
+                    if (product.stock_quantity < item.quantity) {
+                        throw new Error(
+                            `Sản phẩm "${product.name}" không đủ hàng. Còn lại: ${product.stock_quantity}, yêu cầu: ${item.quantity}`
+                        );
+                    }
+                }
+
+                // BƯỚC 2: Tạo đơn hàng
+                const orderResult = await this.db.runAsync(
+                    "INSERT INTO orders (user_id, total_amount, shipping_address, payment_method, notes) VALUES (?, ?, ?, ?, ?)",
+                    [userId, totalAmount, shippingAddress, paymentMethod, notes]
+                );
+
+                orderId = orderResult.lastInsertRowId;
+
+                // BƯỚC 3: Thêm các sản phẩm vào order_items VÀ TRỪ STOCK
+                for (const item of cartItems) {
+                    // Thêm vào order_items
+                    await this.db.runAsync(
+                        "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
+                        [orderId, item.product_id, item.quantity, item.price]
+                    );
+
+                    // TRỪ STOCK
+                    const updateResult = await this.db.runAsync(
+                        "UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        [item.quantity, item.product_id]
+                    );
+
+                    console.log(
+                        `✅ Đã trừ ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`
+                    );
+                }
+
+                // BƯỚC 4: Xóa giỏ hàng
+                await this.db.runAsync("DELETE FROM cart WHERE user_id = ?", [
+                    userId,
+                ]);
+            });
+
+            console.log(
+                `✅ Order ${orderId} đã được tạo và stock đã được cập nhật`
             );
-
-            orderId = orderResult.lastInsertRowId;
-
-            // BƯỚC 3: Thêm các sản phẩm vào order_items VÀ TRỪ STOCK
-            for (const item of cartItems) {
-              // Thêm vào order_items
-              await this.db.runAsync(
-                "INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)",
-                [orderId, item.product_id, item.quantity, item.price]
-              );
-
-              // TRỪ STOCK
-              const updateResult = await this.db.runAsync(
-                "UPDATE products SET stock_quantity = stock_quantity - ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [item.quantity, item.product_id]
-              );
-
-              console.log(
-                `✅ Đã trừ ${item.quantity} stock cho sản phẩm ID: ${item.product_id}`
-              );
-            }
-
-            // BƯỚC 4: Xóa giỏ hàng
-            await this.db.runAsync("DELETE FROM cart WHERE user_id = ?", [
-              userId,
-            ]);
-          });
-
-          console.log(
-            `✅ Order ${orderId} đã được tạo và stock đã được cập nhật`
-          );
-          return orderId;
+            return orderId;
         } catch (error) {
             console.error('Error creating order:', error);
             throw error;
@@ -1170,6 +1227,9 @@ class DatabaseService {
 
             console.log('📦 Importing sample data...');
 
+            // Import Crypto for password hashing
+            const Crypto = require('expo-crypto');
+
             // Import categories
             if (sampleData.categories && sampleData.categories.length > 0) {
                 for (const category of sampleData.categories) {
@@ -1207,16 +1267,57 @@ class DatabaseService {
                 console.log(`📝 Checking users... Found ${sampleData.users.length} users in sample data`);
                 for (const user of sampleData.users) {
                     try {
+                        // Hash password trước khi lưu
+                        const hashedPassword = await Crypto.digestStringAsync(
+                            Crypto.CryptoDigestAlgorithm.SHA256,
+                            user.password
+                        );
+                        console.log(`🔐 Hashing password for ${user.email}: ${user.password} → ${hashedPassword}`);
+
+                        const userWithHashedPassword = {
+                            ...user,
+                            password: hashedPassword
+                        };
+
                         const exists = await this.getUserByEmail(user.email);
                         if (!exists) {
-                            const userId = await this.createUser(user);
+                            const userId = await this.createUser(userWithHashedPassword);
                             if (userId) {
                                 console.log(`✅ Imported user: ${user.email} (ID: ${userId})`);
                             } else {
                                 console.error(`❌ Failed to import user: ${user.email}`);
                             }
                         } else {
-                            console.log(`⏭️  User already exists: ${user.email}`);
+                            // UPDATE password nếu user đã tồn tại (với hashed password)
+                            console.log(`⚠️  User already exists: ${user.email} - Updating password...`);
+                            try {
+                                // Retry logic with exponential backoff for database lock
+                                let retries = 5;
+                                let success = false;
+                                let delay = 200; // Start with 200ms
+
+                                while (retries > 0 && !success) {
+                                    try {
+                                        const result = await this.db.runAsync(
+                                            'UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE email = ?',
+                                            [hashedPassword, user.email]
+                                        );
+                                        success = true;
+                                        console.log(`✅ Updated password for: ${user.email} (${result.changes} rows)`);
+                                    } catch (lockError) {
+                                        retries--;
+                                        if (retries > 0) {
+                                            console.log(`⚠️  Database locked, retrying in ${delay}ms... (${retries} attempts left)`);
+                                            await new Promise(resolve => setTimeout(resolve, delay));
+                                            delay *= 2; // Exponential backoff: 200ms, 400ms, 800ms, 1600ms
+                                        } else {
+                                            throw lockError;
+                                        }
+                                    }
+                                }
+                            } catch (updateError) {
+                                console.log(`⚠️  Could not update password for ${user.email}, skipping...`);
+                            }
                         }
                     } catch (error) {
                         console.error(`❌ Error importing user ${user.email}:`, error);

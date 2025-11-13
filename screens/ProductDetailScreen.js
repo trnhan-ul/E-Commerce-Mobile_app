@@ -1,33 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-    View,
-    Text,
-    Image,
-    ScrollView,
-    TouchableOpacity,
-    StyleSheet,
-    SafeAreaView,
-    StatusBar,
-    Dimensions,
-    Modal,
-    FlatList,
-    Alert,
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  SafeAreaView,
+  StatusBar,
+  Modal,
+  FlatList,
+  Alert,
 } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { MaterialIcons as Icon } from '@expo/vector-icons';
 import { fetchProductById } from '../store/slices/productSlice';
 import {
-    fetchProductReviewsByProductId,
-    selectProductReviews,
-    selectProductReviewsLoading
+  fetchProductReviewsByProductId,
+  selectProductReviews,
+  selectProductReviewsLoading
 } from '../store/slices/reviewSlice';
 import { addToCart } from '../store/slices/cartSlice';
 import { InlineLoading, OverlayLoading } from '../components/Loading';
 import { COLORS } from '../constants/colors';
 import { formatCurrency } from '../utils/formatCurrency';
 import Toast from 'react-native-toast-message';
-
-const { width } = Dimensions.get('window');
+import { wp, hp, rf, spacing, borderRadius, iconSizes, fontSizes } from '../utils/responsive';
 
 const ProductDetailScreen = ({ navigation, route }) => {
   const dispatch = useDispatch();
@@ -404,15 +402,26 @@ const ProductDetailScreen = ({ navigation, route }) => {
     } catch (error) {
       setShowLoadingModal(false);
 
-      // Show error toast
+      // Show error toast with friendly message
+      const errorMessage = error?.message || error?.toString() || "Có lỗi xảy ra khi thêm sản phẩm vào giỏ hàng";
+
+      console.log('🔔 Showing toast with message:', errorMessage);
+
       Toast.show({
         type: "error",
         text1: "Không thể thêm vào giỏ hàng",
-        text2:
-          error?.toString() || "Có lỗi xảy ra khi thêm sản phẩm vào giỏ hàng",
+        text2: errorMessage,
         position: "top",
-        visibilityTime: 2500,
+        visibilityTime: 3500,
+        topOffset: 60, // Add offset to show below status bar
       });
+
+      // Also show Alert as fallback
+      Alert.alert(
+        "Không thể thêm vào giỏ hàng",
+        errorMessage,
+        [{ text: "Đóng", style: "cancel" }]
+      );
     }
   };
 
@@ -660,7 +669,7 @@ const ProductDetailScreen = ({ navigation, route }) => {
                 style={[
                   styles.quantityButton,
                   (quantity >= stockQuantity || isOutOfStock) &&
-                    styles.quantityButtonDisabled,
+                  styles.quantityButtonDisabled,
                 ]}
                 onPress={() => handleQuantityChange("increase")}
                 disabled={quantity >= stockQuantity || isOutOfStock}
@@ -713,8 +722,8 @@ const ProductDetailScreen = ({ navigation, route }) => {
                   isOutOfStock
                     ? "#ff4757"
                     : stockQuantity <= 5
-                    ? "#ff9800"
-                    : "#4caf50"
+                      ? "#ff9800"
+                      : "#4caf50"
                 }
               />
               <Text
@@ -722,15 +731,15 @@ const ProductDetailScreen = ({ navigation, route }) => {
                   styles.featureText,
                   isOutOfStock && styles.outOfStockText,
                   stockQuantity <= 5 &&
-                    stockQuantity > 0 &&
-                    styles.lowStockText,
+                  stockQuantity > 0 &&
+                  styles.lowStockText,
                 ]}
               >
                 {isOutOfStock
                   ? "❌ Hết hàng"
                   : stockQuantity <= 5
-                  ? `⚠️ Chỉ còn ${stockQuantity} sản phẩm`
-                  : `✅ Còn hàng: ${stockQuantity} sản phẩm`}
+                    ? `⚠️ Chỉ còn ${stockQuantity} sản phẩm`
+                    : `✅ Còn hàng: ${stockQuantity} sản phẩm`}
               </Text>
             </View>
           </View>
@@ -821,8 +830,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
   },
   loadingText: {
-    marginTop: 10,
-    fontSize: 16,
+    marginTop: spacing.sm,
+    fontSize: fontSizes.md,
     color: "#666",
   },
   errorContainer: {
@@ -830,12 +839,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#fff",
-    padding: 20,
+    padding: spacing.lg,
   },
   errorText: {
-    fontSize: 18,
+    fontSize: fontSizes.lg,
     color: "#ff4757",
-    marginBottom: 10,
+    marginBottom: spacing.sm,
     textAlign: "center",
   },
   retryButton: {

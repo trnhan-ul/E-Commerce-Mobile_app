@@ -1,7 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Animated, Dimensions } from 'react-native';
-
-const { width, height } = Dimensions.get('window');
+import { View, Text, ActivityIndicator, StyleSheet, Animated } from 'react-native';
+import { wp, hp, rf, spacing, borderRadius, fontSizes } from '../utils/responsive';
 
 export default function SplashScreen() {
     const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -99,35 +98,35 @@ const styles = StyleSheet.create({
     },
     backgroundCircle1: {
         position: 'absolute',
-        width: width * 1.5,
-        height: width * 1.5,
-        borderRadius: width * 0.75,
+        width: wp(600),
+        height: wp(600),
+        borderRadius: borderRadius.full,
         backgroundColor: '#13C2C2',
         opacity: 0.1,
-        top: -width * 0.5,
-        left: -width * 0.25,
+        top: hp(-200),
+        left: wp(-100),
     },
     backgroundCircle2: {
         position: 'absolute',
-        width: width,
-        height: width,
-        borderRadius: width * 0.5,
+        width: wp(400),
+        height: wp(400),
+        borderRadius: borderRadius.full,
         backgroundColor: '#13C2C2',
         opacity: 0.05,
-        bottom: -width * 0.3,
-        right: -width * 0.3,
+        bottom: hp(-120),
+        right: wp(-120),
     },
     contentContainer: {
         alignItems: 'center',
         justifyContent: 'center',
     },
     logoContainer: {
-        marginBottom: 30,
+        marginBottom: spacing.xxl,
     },
     iconWrapper: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
+        width: wp(120),
+        height: wp(120),
+        borderRadius: borderRadius.full,
         backgroundColor: '#13C2C2',
         justifyContent: 'center',
         alignItems: 'center',
@@ -141,54 +140,54 @@ const styles = StyleSheet.create({
         elevation: 15,
     },
     iconText: {
-        fontSize: 24,
+        fontSize: fontSizes.xxl,
         fontWeight: 'bold',
         color: '#0D364C',
         letterSpacing: 2,
     },
     title: {
-        fontSize: 36,
+        fontSize: rf(36),
         fontWeight: 'bold',
         color: '#FFFFFF',
-        marginBottom: 8,
+        marginBottom: spacing.sm,
         letterSpacing: 3,
         textShadowColor: 'rgba(0, 0, 0, 0.3)',
         textShadowOffset: { width: 0, height: 2 },
         textShadowRadius: 4,
     },
     subtitle: {
-        fontSize: 16,
+        fontSize: fontSizes.md,
         color: '#13C2C2',
-        marginBottom: 40,
+        marginBottom: spacing.xl,
         fontStyle: 'italic',
         opacity: 0.9,
     },
     customLoader: {
-        width: 60,
-        height: 60,
-        marginBottom: 20,
+        width: wp(60),
+        height: wp(60),
+        marginBottom: spacing.lg,
     },
     loaderRing: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        width: wp(60),
+        height: wp(60),
+        borderRadius: borderRadius.full,
         borderWidth: 4,
         borderColor: 'transparent',
         borderTopColor: '#13C2C2',
         borderRightColor: '#13C2C2',
     },
     loadingText: {
-        fontSize: 16,
+        fontSize: fontSizes.md,
         color: '#13C2C2',
         opacity: 0.8,
     },
     footer: {
         position: 'absolute',
-        bottom: 50,
+        bottom: hp(50),
         alignItems: 'center',
     },
     versionText: {
-        fontSize: 12,
+        fontSize: fontSizes.sm,
         color: '#FFFFFF',
         opacity: 0.6,
     },
